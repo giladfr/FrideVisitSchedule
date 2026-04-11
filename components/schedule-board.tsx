@@ -898,7 +898,7 @@ function WeekSection({
       <div className="hidden overflow-x-auto lg:block" dir="rtl">
         <div className="min-w-[1180px]">
           <div className="grid grid-cols-[repeat(7,minmax(0,1fr))_110px] border-b border-stone-200 bg-white/75">
-            {[...week.days].reverse().map((day) => (
+            {week.days.map((day) => (
               <DayHeaderCell
                 key={day.date}
                 day={day}
@@ -916,7 +916,7 @@ function WeekSection({
               key={segment}
               className="grid grid-cols-[repeat(7,minmax(0,1fr))_110px] border-b border-stone-200 last:border-b-0"
             >
-              {[...week.days].reverse().map((day) => (
+              {week.days.map((day) => (
                 <ScheduleDropZone
                   key={`${day.date}-${segment}`}
                   day={day}
@@ -942,7 +942,7 @@ function WeekSection({
       </div>
 
       <div className="grid gap-4 p-4 lg:hidden">
-        {[...week.days].reverse().map((day) => (
+        {week.days.map((day) => (
           <div
             key={day.date}
             className={`rounded-[1.5rem] border p-4 ${

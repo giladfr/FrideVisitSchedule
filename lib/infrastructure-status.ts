@@ -26,7 +26,7 @@ async function verifySupabaseConnection() {
   }
 
   try {
-    const response = await fetch(`${url}/rest/v1/`, {
+    const authResponse = await fetch(`${url}/auth/v1/settings`, {
       headers: {
         apikey: anonKey!,
         Authorization: `Bearer ${anonKey}`,
@@ -34,17 +34,41 @@ async function verifySupabaseConnection() {
       cache: "no-store",
     });
 
-    if (response.ok) {
+    if (!authResponse.ok) {
+      const body = await authResponse.text();
       return {
-        connected: true,
-        detail: "Supabase URL and anon key are valid.",
+        connected: false,
+        detail: `Supabase auth responded with ${authResponse.status}: ${body}`,
       };
     }
 
-    const body = await response.text();
+    const restResponse = await fetch(`${url}/rest/v1/visit_events?select=id&limit=1`, {
+      headers: {
+        apikey: anonKey!,
+        Authorization: `Bearer ${anonKey}`,
+      },
+      cache: "no-store",
+    });
+
+    if (restResponse.ok) {
+      return {
+        connected: true,
+        detail: "Supabase anon key is valid and the visit_events table is reachable.",
+      };
+    }
+
+    const body = await restResponse.text();
+    if (restResponse.status === 404) {
+      return {
+        connected: true,
+        detail:
+          "Supabase anon key is valid, but visit_events does not exist yet. Run supabase/schema.sql in the SQL editor.",
+      };
+    }
+
     return {
       connected: false,
-      detail: `Supabase responded with ${response.status}: ${body}`,
+      detail: `Supabase REST responded with ${restResponse.status}: ${body}`,
     };
   } catch (error) {
     return {
