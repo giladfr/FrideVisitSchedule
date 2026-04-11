@@ -1,16 +1,13 @@
-export type PersonId =
-  | "gilad"
-  | "maya"
-  | "yoav"
-  | "noa"
-  | "ella";
+export type PersonId = "gilad" | "yaara" | "kids";
 
-export type SegmentId = "morning" | "noon" | "afternoon" | "evening";
+export type SegmentId = "morning" | "noon" | "evening" | "night";
 
 export type Person = {
   id: PersonId;
   name: string;
-  color: string;
+  shortName: string;
+  colorClass: string;
+  chipClass: string;
 };
 
 export type TripEvent = {
@@ -19,17 +16,23 @@ export type TripEvent = {
   date: string;
   segment: SegmentId;
   attendees: PersonId[];
-  category: "shared" | "personal";
-  location?: string;
+  location: string;
   notes?: string;
 };
 
-export type TripDay = {
+export type CalendarDay = {
   date: string;
-  dayLabel: string;
-  shortDate: string;
-  weekLabel: string;
-  isWeekend: boolean;
+  dayName: string;
+  dayNumber: string;
+  monthLabel: string;
+  inTripRange: boolean;
+  isToday: boolean;
+};
+
+export type CalendarWeek = {
+  id: string;
+  label: string;
+  days: CalendarDay[];
 };
 
 export const tripWindow = {
@@ -38,207 +41,266 @@ export const tripWindow = {
 };
 
 export const people: Person[] = [
-  { id: "gilad", name: "Gilad", color: "bg-teal-600" },
-  { id: "maya", name: "Maya", color: "bg-amber-500" },
-  { id: "yoav", name: "Yoav", color: "bg-sky-500" },
-  { id: "noa", name: "Noa", color: "bg-rose-500" },
-  { id: "ella", name: "Ella", color: "bg-violet-500" },
+  {
+    id: "gilad",
+    name: "גלעד",
+    shortName: "ג",
+    colorClass: "bg-teal-500",
+    chipClass: "bg-teal-100 text-teal-950 border-teal-200",
+  },
+  {
+    id: "yaara",
+    name: "יערה",
+    shortName: "י",
+    colorClass: "bg-amber-400",
+    chipClass: "bg-amber-100 text-amber-950 border-amber-200",
+  },
+  {
+    id: "kids",
+    name: "ילדים",
+    shortName: "י",
+    colorClass: "bg-sky-500",
+    chipClass: "bg-sky-100 text-sky-950 border-sky-200",
+  },
 ];
 
 export const segmentLabels: Record<SegmentId, string> = {
-  morning: "Morning",
-  noon: "Noon",
-  afternoon: "Afternoon",
-  evening: "Evening",
+  morning: "בוקר",
+  noon: "צהריים",
+  evening: "ערב",
+  night: "לילה",
 };
+
+export const segmentTimes: Record<SegmentId, string> = {
+  morning: "06:00-11:00",
+  noon: "11:00-15:00",
+  evening: "15:00-20:00",
+  night: "20:00-23:30",
+};
+
+export const hebrewWeekdays = [
+  "יום ראשון",
+  "יום שני",
+  "יום שלישי",
+  "יום רביעי",
+  "יום חמישי",
+  "יום שישי",
+  "שבת",
+] as const;
 
 export const demoEvents: TripEvent[] = [
   {
     id: "arrival",
-    title: "Arrival and airport pickup",
+    title: "נחיתה ואיסוף משדה התעופה",
     date: "2026-06-03",
     segment: "evening",
-    attendees: people.map((person) => person.id),
-    category: "shared",
-    location: "Ben Gurion Airport",
-    notes: "Landing day buffer and luggage recovery.",
+    attendees: ["gilad", "yaara", "kids"],
+    location: "נתב\"ג",
+    notes: "זמן התאוששות מהטיסה, מזוודות ונסיעה הביתה.",
   },
   {
-    id: "recovery-breakfast",
-    title: "Slow breakfast with family",
+    id: "first-breakfast",
+    title: "ארוחת בוקר רגועה עם המשפחה",
     date: "2026-06-04",
     segment: "morning",
-    attendees: people.map((person) => person.id),
-    category: "shared",
-    location: "Home base",
+    attendees: ["gilad", "yaara", "kids"],
+    location: "בסיס השהות",
   },
   {
-    id: "gilad-work",
-    title: "Work catch-up meeting",
+    id: "gilad-meeting",
+    title: "פגישת עבודה",
     date: "2026-06-04",
-    segment: "afternoon",
+    segment: "evening",
     attendees: ["gilad"],
-    category: "personal",
-    location: "Tel Aviv cafe",
+    location: "תל אביב",
   },
   {
-    id: "park-evening",
-    title: "Neighborhood park and dinner",
+    id: "yaara-family",
+    title: "קפה עם המשפחה",
     date: "2026-06-05",
-    segment: "evening",
-    attendees: people.map((person) => person.id),
-    category: "shared",
-    location: "Local park",
+    segment: "noon",
+    attendees: ["yaara"],
+    location: "כפר סבא",
   },
   {
-    id: "shabbat-dinner",
-    title: "Shabbat dinner with relatives",
-    date: "2026-06-06",
+    id: "park",
+    title: "פארק וארוחת ערב",
+    date: "2026-06-07",
     segment: "evening",
-    attendees: people.map((person) => person.id),
-    category: "shared",
-    location: "Jerusalem",
+    attendees: ["gilad", "yaara", "kids"],
+    location: "פארק רעננה",
   },
   {
-    id: "gilad-coffee",
-    title: "Coffee with old friend",
+    id: "kids-play",
+    title: "מפגש משחק לילדים",
     date: "2026-06-08",
-    segment: "morning",
-    attendees: ["gilad"],
-    category: "personal",
-    location: "Ramat Gan",
+    segment: "evening",
+    attendees: ["kids"],
+    location: "בית של חברים",
   },
   {
-    id: "beach-day",
-    title: "Beach afternoon",
-    date: "2026-06-09",
-    segment: "afternoon",
-    attendees: people.map((person) => person.id),
-    category: "shared",
-    location: "Herzliya beach",
-  },
-  {
-    id: "maya-cousin",
-    title: "Lunch with cousin",
+    id: "beach",
+    title: "יום ים",
     date: "2026-06-10",
     segment: "noon",
-    attendees: ["maya"],
-    category: "personal",
-    location: "Kfar Saba",
+    attendees: ["gilad", "yaara", "kids"],
+    location: "חוף הרצליה",
+  },
+  {
+    id: "dinner",
+    title: "ארוחת ערב אצל קרובים",
+    date: "2026-06-12",
+    segment: "night",
+    attendees: ["gilad", "yaara", "kids"],
+    location: "ירושלים",
+  },
+  {
+    id: "gilad-friends",
+    title: "פגישה עם חבר ותיק",
+    date: "2026-06-14",
+    segment: "morning",
+    attendees: ["gilad"],
+    location: "רמת גן",
   },
   {
     id: "museum",
-    title: "Museum visit",
-    date: "2026-06-12",
+    title: "מוזיאון",
+    date: "2026-06-15",
     segment: "morning",
-    attendees: people.map((person) => person.id),
-    category: "shared",
-    location: "Tel Aviv Museum",
+    attendees: ["gilad", "yaara", "kids"],
+    location: "מוזיאון תל אביב",
   },
   {
-    id: "family-lunch",
-    title: "Extended family lunch",
-    date: "2026-06-14",
-    segment: "noon",
-    attendees: people.map((person) => person.id),
-    category: "shared",
-    location: "Modiin",
-  },
-  {
-    id: "kids-playdate",
-    title: "Kids playdate",
-    date: "2026-06-16",
-    segment: "afternoon",
-    attendees: ["yoav", "noa", "ella"],
-    category: "personal",
-    location: "Neighbor's home",
-  },
-  {
-    id: "gilad-business",
-    title: "Business meeting",
+    id: "yaara-lunch",
+    title: "צהריים עם יערה והמשפחה",
     date: "2026-06-17",
-    segment: "morning",
-    attendees: ["gilad"],
-    category: "personal",
-    location: "Tel Aviv",
+    segment: "noon",
+    attendees: ["yaara"],
+    location: "הוד השרון",
   },
   {
-    id: "galilee-day",
-    title: "Day trip north",
+    id: "north-trip",
+    title: "טיול לצפון",
     date: "2026-06-18",
     segment: "morning",
-    attendees: people.map((person) => person.id),
-    category: "shared",
-    location: "Galilee",
+    attendees: ["gilad", "yaara", "kids"],
+    location: "הגליל",
   },
   {
-    id: "galilee-evening",
-    title: "Dinner on the way back",
+    id: "north-dinner",
+    title: "ארוחת ערב בדרך חזרה",
     date: "2026-06-18",
-    segment: "evening",
-    attendees: people.map((person) => person.id),
-    category: "shared",
-    location: "Haifa",
+    segment: "night",
+    attendees: ["gilad", "yaara", "kids"],
+    location: "חיפה",
   },
   {
-    id: "shabbat-two",
-    title: "Second Shabbat dinner",
-    date: "2026-06-20",
+    id: "shabbat",
+    title: "ארוחת שישי",
+    date: "2026-06-19",
+    segment: "night",
+    attendees: ["gilad", "yaara", "kids"],
+    location: "בית המשפחה",
+  },
+  {
+    id: "kids-pool",
+    title: "בריכה לילדים",
+    date: "2026-06-22",
     segment: "evening",
-    attendees: people.map((person) => person.id),
-    category: "shared",
-    location: "Family home",
+    attendees: ["kids"],
+    location: "קאנטרי קלאב",
   },
   {
     id: "packing",
-    title: "Packing and goodbye rounds",
+    title: "אריזות וסידורים לפני הטיסה",
     date: "2026-06-23",
-    segment: "afternoon",
-    attendees: people.map((person) => person.id),
-    category: "shared",
-    location: "Home base",
+    segment: "night",
+    attendees: ["gilad", "yaara", "kids"],
+    location: "בסיס השהות",
   },
   {
     id: "departure",
-    title: "Departure day",
+    title: "יציאה לשדה",
     date: "2026-06-24",
     segment: "morning",
-    attendees: people.map((person) => person.id),
-    category: "shared",
-    location: "Ben Gurion Airport",
+    attendees: ["gilad", "yaara", "kids"],
+    location: "נתב\"ג",
   },
 ];
 
 const oneDay = 24 * 60 * 60 * 1000;
 
-export function buildTripDays(): TripDay[] {
-  const start = new Date(`${tripWindow.start}T12:00:00`);
-  const end = new Date(`${tripWindow.end}T12:00:00`);
-  const days: TripDay[] = [];
-
-  for (let current = start; current <= end; current = new Date(current.getTime() + oneDay)) {
-    const iso = current.toISOString().slice(0, 10);
-    const dayLabel = current.toLocaleDateString("en-US", { weekday: "long" });
-    const shortDate = current.toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    });
-
-    const tripDayNumber = Math.floor((current.getTime() - start.getTime()) / oneDay);
-    const weekNumber = Math.floor(tripDayNumber / 7) + 1;
-
-    days.push({
-      date: iso,
-      dayLabel,
-      shortDate,
-      weekLabel: `Week ${weekNumber}`,
-      isWeekend: current.getDay() === 5 || current.getDay() === 6,
-    });
-  }
-
-  return days;
+function createMiddayDate(date: string) {
+  return new Date(`${date}T12:00:00`);
 }
 
-export function getEventsForDate(date: string) {
-  return demoEvents.filter((event) => event.date === date);
+function toIsoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function getWeekStart(date: Date) {
+  const result = new Date(date);
+  result.setDate(result.getDate() - result.getDay());
+  return result;
+}
+
+function getWeekEnd(date: Date) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + (6 - result.getDay()));
+  return result;
+}
+
+function isSameDate(a: Date, b: Date) {
+  return toIsoDate(a) === toIsoDate(b);
+}
+
+export function getPerson(personId: PersonId) {
+  return people.find((person) => person.id === personId) ?? people[0];
+}
+
+export function getPrimaryPerson(event: TripEvent) {
+  return getPerson(event.attendees[0] ?? "gilad");
+}
+
+export function buildCalendarWeeks(): CalendarWeek[] {
+  const tripStart = createMiddayDate(tripWindow.start);
+  const tripEnd = createMiddayDate(tripWindow.end);
+  const start = getWeekStart(tripStart);
+  const end = getWeekEnd(tripEnd);
+  const today = createMiddayDate(new Date().toISOString().slice(0, 10));
+
+  const weeks: CalendarWeek[] = [];
+  let current = new Date(start);
+  let weekIndex = 1;
+
+  while (current <= end) {
+    const weekDays: CalendarDay[] = [];
+
+    for (let offset = 0; offset < 7; offset += 1) {
+      const day = new Date(current.getTime() + offset * oneDay);
+      const isoDate = toIsoDate(day);
+      weekDays.push({
+        date: isoDate,
+        dayName: hebrewWeekdays[offset],
+        dayNumber: day.toLocaleDateString("he-IL", { day: "numeric" }),
+        monthLabel: day.toLocaleDateString("he-IL", {
+          month: "long",
+          year: "numeric",
+        }),
+        inTripRange: day >= tripStart && day <= tripEnd,
+        isToday: isSameDate(day, today),
+      });
+    }
+
+    weeks.push({
+      id: `week-${weekIndex}`,
+      label: `שבוע ${weekIndex}`,
+      days: weekDays,
+    });
+
+    current = new Date(current.getTime() + 7 * oneDay);
+    weekIndex += 1;
+  }
+
+  return weeks;
 }

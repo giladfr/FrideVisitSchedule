@@ -24,7 +24,7 @@ export default async function AdminPage({
       <>
         {params?.error === "invalid" ? (
           <div className="mx-auto mt-6 w-full max-w-xl rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
-            Password was incorrect. Please try again.
+            הסיסמה שגויה. נסו שוב.
           </div>
         ) : null}
         <AdminLoginCard passwordConfigured={passwordConfigured} />
@@ -37,10 +37,10 @@ export default async function AdminPage({
       <div className="mb-6 flex flex-col gap-3 rounded-[1.75rem] border border-sky-200 bg-sky-50 px-5 py-4 text-sky-950 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-sm uppercase tracking-[0.18em] text-sky-700">
-            Admin session
+            מצב אדמין
           </p>
           <p className="mt-1 font-semibold">
-            Editing mode is unlocked for the June 3, 2026 to June 24, 2026 visit.
+            מצב העריכה פתוח עבור הביקור בין 3 ביוני 2026 ל-24 ביוני 2026.
           </p>
         </div>
 
@@ -49,14 +49,14 @@ export default async function AdminPage({
             href="/"
             className="inline-flex items-center justify-center rounded-full border border-sky-300 bg-white px-4 py-2 text-sm font-semibold text-sky-950 transition hover:bg-sky-100"
           >
-            View public page
+            חזרה לדף הציבורי
           </Link>
           <form action="/api/admin/logout" method="post">
             <button
               type="submit"
               className="rounded-full bg-sky-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-900"
             >
-              Exit admin mode
+              יציאה ממצב אדמין
             </button>
           </form>
         </div>

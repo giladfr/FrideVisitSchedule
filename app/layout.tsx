@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fride Visit Schedule",
-  description: "Infrastructure starter for the family trip scheduler.",
+  title: "לוח ביקור בישראל",
+  description: "לוח זמנים משפחתי לביקור בישראל.",
 };
 
 export default function RootLayout({
@@ -24,7 +24,8 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
+      lang="he"
+      dir="rtl"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full bg-background text-foreground font-sans">
