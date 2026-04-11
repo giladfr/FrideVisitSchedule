@@ -3,10 +3,10 @@ import Link from "next/link";
 import { getInfrastructureStatus } from "@/lib/infrastructure-status";
 
 const setupSteps = [
-  "Create the GitHub repository and push this project.",
-  "Create a Supabase project and copy the URL plus anon key into Vercel env vars.",
-  "Link the repo to Vercel and redeploy.",
-  "Confirm the landing page shows all systems as connected.",
+  "Create a Supabase project.",
+  "Add the Supabase URL and anon key to Vercel environment variables.",
+  "Optionally add NEXT_PUBLIC_GITHUB_REPO for a complete status panel.",
+  "Redeploy and confirm every system shows as connected.",
 ];
 
 export default function Home() {

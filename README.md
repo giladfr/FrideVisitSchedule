@@ -42,12 +42,11 @@ npm run dev
 
 ## Recommended first connection flow
 
-1. Create the GitHub repository
-2. Push this project
-3. Create a Supabase project
-4. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel
-5. Import the GitHub repository into Vercel
-6. Confirm `/api/status` reports the services correctly
+1. Create a Supabase project
+2. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel
+3. Optionally add `NEXT_PUBLIC_GITHUB_REPO=giladfr/FrideVisitSchedule`
+4. Redeploy the app
+5. Confirm `/api/status` reports the services correctly
 
 ## Notes
 
