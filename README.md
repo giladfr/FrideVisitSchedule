@@ -1,55 +1,56 @@
 # Fride Visit Schedule
 
-Infrastructure-first starter for a public family trip planning app.
+Three-week Israel visit planner for June 3, 2026 through June 24, 2026.
 
 ## What is here
 
-- Next.js app ready for Vercel
-- simple public landing page
-- `/api/status` endpoint for infrastructure checks
-- Supabase client scaffolding
-- environment template for local and Vercel setup
+- public trip schedule UI with day segments instead of hourly slots
+- password-only admin route at `/admin`
+- Supabase-ready client scaffolding
+- project-level Supabase MCP config in `.mcp.json`
+- Vercel-ready Next.js app
 
-## Local setup
+## Current product shape
 
-1. Copy `.env.example` to `.env.local`
-2. Add the Supabase values when you create the project
-3. Install dependencies
-4. Start the app
+- everyone can view the schedule
+- only one admin password is needed for editing mode
+- no usernames and no full user auth system yet
+- Google Calendar sync is intentionally deferred until after the UI and data model settle
+
+## Environment variables
+
+Copy `.env.example` to `.env.local` and fill in the missing values:
 
 ```bash
 cp .env.example .env.local
+```
+
+Required next values:
+
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `ADMIN_PASSWORD`
+
+Optional:
+
+- `NEXT_PUBLIC_GITHUB_REPO`
+
+## Local development
+
+```bash
 npm install
 npm run dev
 ```
 
-## Planned services
+## Routes
 
-### GitHub
+- `/` public visit planner
+- `/admin` password-only admin mode
+- `/api/status` infrastructure status
 
-- store the source code
-- connect the repository to Vercel
+## Supabase MCP
 
-### Vercel
+This repo now includes a local `.mcp.json` entry pointing at:
 
-- host the Next.js app
-- manage deployment environment variables
+- `https://mcp.supabase.com/mcp?project_ref=xjiiuhuagwsqepginkep`
 
-### Supabase
-
-- provide the Postgres database later
-- optionally hold trip tables, events, and sync metadata
-
-## Recommended first connection flow
-
-1. Create a Supabase project
-2. Add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` in Vercel
-3. Optionally add `NEXT_PUBLIC_GITHUB_REPO=giladfr/FrideVisitSchedule`
-4. Redeploy the app
-5. Confirm `/api/status` reports the services correctly
-
-## Notes
-
-- Authentication is intentionally omitted for now.
-- The app is public by design in this first phase.
-- The status page only checks whether expected environment variables are present.
+If you want to authenticate that MCP server in another client, do it from the client that supports the MCP auth flow.

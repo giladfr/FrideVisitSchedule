@@ -16,6 +16,7 @@ function isConfigured(value: string | undefined) {
 
 export function getInfrastructureStatus(): InfrastructureStatus {
   const githubRepo = process.env.NEXT_PUBLIC_GITHUB_REPO?.trim();
+  const adminPassword = process.env.ADMIN_PASSWORD?.trim();
 
   const checks: InfrastructureCheck[] = [
     {
@@ -47,6 +48,13 @@ export function getInfrastructureStatus(): InfrastructureStatus {
       detail: githubRepo
         ? `Connected to ${githubRepo}.`
         : "Optional: set NEXT_PUBLIC_GITHUB_REPO so the app can display the repo name.",
+    },
+    {
+      label: "Admin password",
+      connected: Boolean(adminPassword),
+      detail: adminPassword
+        ? "Password-only admin mode is configured."
+        : "Add ADMIN_PASSWORD to unlock the private editor view.",
     },
   ];
 
