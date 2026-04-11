@@ -10,10 +10,13 @@ type InfrastructureStatus = {
 };
 
 function isConfigured(value: string | undefined) {
-  return Boolean(value && !value.includes("your-"));
+  const normalized = value?.trim();
+  return Boolean(normalized && !normalized.includes("your-"));
 }
 
 export function getInfrastructureStatus(): InfrastructureStatus {
+  const githubRepo = process.env.NEXT_PUBLIC_GITHUB_REPO?.trim();
+
   const checks: InfrastructureCheck[] = [
     {
       label: "Next.js app",
@@ -40,9 +43,9 @@ export function getInfrastructureStatus(): InfrastructureStatus {
     },
     {
       label: "GitHub repository",
-      connected: Boolean(process.env.NEXT_PUBLIC_GITHUB_REPO),
-      detail: process.env.NEXT_PUBLIC_GITHUB_REPO
-        ? `Connected to ${process.env.NEXT_PUBLIC_GITHUB_REPO}.`
+      connected: Boolean(githubRepo),
+      detail: githubRepo
+        ? `Connected to ${githubRepo}.`
         : "Optional: set NEXT_PUBLIC_GITHUB_REPO so the app can display the repo name.",
     },
   ];
