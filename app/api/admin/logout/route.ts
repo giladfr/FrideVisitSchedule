@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { ADMIN_COOKIE_NAME } from "@/lib/admin-auth";
 
 export async function POST(request: Request) {
+  const origin = new URL(request.url);
+  const isSecureOrigin = origin.protocol === "https:";
   const response = NextResponse.redirect(new URL("/", request.url), {
     status: 303,
   });
@@ -12,7 +14,7 @@ export async function POST(request: Request) {
     value: "",
     httpOnly: true,
     sameSite: "lax",
-    secure: true,
+    secure: isSecureOrigin,
     path: "/",
     maxAge: 0,
   });

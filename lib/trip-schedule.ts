@@ -18,6 +18,12 @@ export type TripEvent = {
   attendees: PersonId[];
   location: string;
   notes?: string;
+  status: "approved" | "pending" | "rejected";
+  createdByRole: "admin" | "guest";
+  suggestedByName?: string;
+  suggestedByPerson?: PersonId;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type CalendarDay = {
@@ -97,6 +103,8 @@ export const demoEvents: TripEvent[] = [
     attendees: ["gilad", "yaara", "kids"],
     location: "נתב\"ג",
     notes: "זמן התאוששות מהטיסה, מזוודות ונסיעה הביתה.",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "first-breakfast",
@@ -105,6 +113,8 @@ export const demoEvents: TripEvent[] = [
     segment: "morning",
     attendees: ["gilad", "yaara", "kids"],
     location: "בסיס השהות",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "gilad-meeting",
@@ -113,6 +123,8 @@ export const demoEvents: TripEvent[] = [
     segment: "evening",
     attendees: ["gilad"],
     location: "תל אביב",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "yaara-family",
@@ -121,6 +133,8 @@ export const demoEvents: TripEvent[] = [
     segment: "noon",
     attendees: ["yaara"],
     location: "כפר סבא",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "park",
@@ -129,6 +143,8 @@ export const demoEvents: TripEvent[] = [
     segment: "evening",
     attendees: ["gilad", "yaara", "kids"],
     location: "פארק רעננה",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "kids-play",
@@ -137,6 +153,8 @@ export const demoEvents: TripEvent[] = [
     segment: "evening",
     attendees: ["kids"],
     location: "בית של חברים",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "beach",
@@ -145,6 +163,8 @@ export const demoEvents: TripEvent[] = [
     segment: "noon",
     attendees: ["gilad", "yaara", "kids"],
     location: "חוף הרצליה",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "dinner",
@@ -153,6 +173,8 @@ export const demoEvents: TripEvent[] = [
     segment: "night",
     attendees: ["gilad", "yaara", "kids"],
     location: "ירושלים",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "gilad-friends",
@@ -161,6 +183,8 @@ export const demoEvents: TripEvent[] = [
     segment: "morning",
     attendees: ["gilad"],
     location: "רמת גן",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "museum",
@@ -169,6 +193,8 @@ export const demoEvents: TripEvent[] = [
     segment: "morning",
     attendees: ["gilad", "yaara", "kids"],
     location: "מוזיאון תל אביב",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "yaara-lunch",
@@ -177,6 +203,8 @@ export const demoEvents: TripEvent[] = [
     segment: "noon",
     attendees: ["yaara"],
     location: "הוד השרון",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "north-trip",
@@ -185,6 +213,8 @@ export const demoEvents: TripEvent[] = [
     segment: "morning",
     attendees: ["gilad", "yaara", "kids"],
     location: "הגליל",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "north-dinner",
@@ -193,6 +223,8 @@ export const demoEvents: TripEvent[] = [
     segment: "night",
     attendees: ["gilad", "yaara", "kids"],
     location: "חיפה",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "shabbat",
@@ -201,6 +233,8 @@ export const demoEvents: TripEvent[] = [
     segment: "night",
     attendees: ["gilad", "yaara", "kids"],
     location: "בית המשפחה",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "kids-pool",
@@ -209,6 +243,8 @@ export const demoEvents: TripEvent[] = [
     segment: "evening",
     attendees: ["kids"],
     location: "קאנטרי קלאב",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "packing",
@@ -217,6 +253,8 @@ export const demoEvents: TripEvent[] = [
     segment: "night",
     attendees: ["gilad", "yaara", "kids"],
     location: "בסיס השהות",
+    status: "approved",
+    createdByRole: "admin",
   },
   {
     id: "departure",
@@ -225,6 +263,8 @@ export const demoEvents: TripEvent[] = [
     segment: "morning",
     attendees: ["gilad", "yaara", "kids"],
     location: "נתב\"ג",
+    status: "approved",
+    createdByRole: "admin",
   },
 ];
 

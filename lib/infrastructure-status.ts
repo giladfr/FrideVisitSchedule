@@ -14,9 +14,50 @@ function isConfigured(value: string | undefined) {
   return Boolean(normalized && !normalized.includes("your-"));
 }
 
-export function getInfrastructureStatus(): InfrastructureStatus {
+async function verifySupabaseConnection() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY?.trim();
+
+  if (!isConfigured(url) || !isConfigured(anonKey)) {
+    return {
+      connected: false,
+      detail: "Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+    };
+  }
+
+  try {
+    const response = await fetch(`${url}/rest/v1/`, {
+      headers: {
+        apikey: anonKey!,
+        Authorization: `Bearer ${anonKey}`,
+      },
+      cache: "no-store",
+    });
+
+    if (response.ok) {
+      return {
+        connected: true,
+        detail: "Supabase URL and anon key are valid.",
+      };
+    }
+
+    const body = await response.text();
+    return {
+      connected: false,
+      detail: `Supabase responded with ${response.status}: ${body}`,
+    };
+  } catch (error) {
+    return {
+      connected: false,
+      detail: error instanceof Error ? error.message : "Failed to verify Supabase connection.",
+    };
+  }
+}
+
+export async function getInfrastructureStatus(): Promise<InfrastructureStatus> {
   const githubRepo = process.env.NEXT_PUBLIC_GITHUB_REPO?.trim();
   const adminPassword = process.env.ADMIN_PASSWORD?.trim();
+  const supabaseCheck = await verifySupabaseConnection();
 
   const checks: InfrastructureCheck[] = [
     {
@@ -33,14 +74,8 @@ export function getInfrastructureStatus(): InfrastructureStatus {
     },
     {
       label: "Supabase project",
-      connected:
-        isConfigured(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
-        isConfigured(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY),
-      detail:
-        isConfigured(process.env.NEXT_PUBLIC_SUPABASE_URL) &&
-        isConfigured(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY)
-          ? "Public URL and anon key are available to the app."
-          : "Add NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      connected: supabaseCheck.connected,
+      detail: supabaseCheck.detail,
     },
     {
       label: "GitHub repository",

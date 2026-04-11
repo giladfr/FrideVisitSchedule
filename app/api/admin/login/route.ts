@@ -12,6 +12,7 @@ export async function POST(request: Request) {
   const password = String(formData.get("password") ?? "");
   const redirectTo = String(formData.get("redirectTo") ?? "/admin");
   const origin = new URL(request.url);
+  const isSecureOrigin = origin.protocol === "https:";
 
   if (!hasAdminPasswordConfigured()) {
     return NextResponse.redirect(new URL("/admin", origin), { status: 303 });
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
     value: createAdminCookieValue() ?? "",
     httpOnly: true,
     sameSite: "lax",
-    secure: true,
+    secure: isSecureOrigin,
     path: "/",
     maxAge: 60 * 60 * 8,
   });
