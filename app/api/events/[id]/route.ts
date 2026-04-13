@@ -40,6 +40,7 @@ function parseEventInput(payload: unknown) {
 
   const input: EventMutationInput = {
     title: raw.title.trim(),
+    emoji: typeof raw.emoji === "string" ? raw.emoji.trim() : undefined,
     date: raw.date,
     segment: raw.segment,
     attendees,

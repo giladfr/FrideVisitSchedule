@@ -2,6 +2,10 @@ import { createHash, timingSafeEqual } from "node:crypto";
 
 export const ADMIN_COOKIE_NAME = "visit-admin-session";
 
+export function isLocalAdminBypassEnabled() {
+  return process.env.NODE_ENV !== "production";
+}
+
 function hashValue(value: string) {
   return createHash("sha256").update(`fride-visit:${value}`).digest("hex");
 }
@@ -21,6 +25,10 @@ export function createAdminCookieValue() {
 }
 
 export function isAdminSessionValid(cookieValue?: string) {
+  if (isLocalAdminBypassEnabled()) {
+    return true;
+  }
+
   const expected = createAdminCookieValue();
 
   if (!expected || !cookieValue) {
@@ -38,6 +46,10 @@ export function isAdminSessionValid(cookieValue?: string) {
 }
 
 export function matchesAdminPassword(password: string) {
+  if (isLocalAdminBypassEnabled()) {
+    return true;
+  }
+
   const configured = process.env.ADMIN_PASSWORD?.trim();
 
   if (!configured) {

@@ -5,8 +5,8 @@ import Link from "next/link";
 
 import {
   buildCalendarWeeks,
+  eventEmojiOptions,
   getPerson,
-  getPrimaryPerson,
   people,
   segmentLabels,
   segmentTimes,
@@ -27,12 +27,17 @@ type ViewerIdentity = {
   name: string;
   personId: PersonId;
 };
+type DropTarget = {
+  date: string;
+  segment: SegmentId;
+};
 type ModalState =
   | { type: "details"; eventId: string }
   | { type: "form"; mode: "admin" | "suggest"; event?: TripEvent; date: string; segment: SegmentId }
   | null;
 type EventDraft = {
   title: string;
+  emoji: string;
   date: string;
   segment: SegmentId;
   location: string;
@@ -73,6 +78,7 @@ function createDraft(
 
   return {
     title: event?.title ?? "",
+    emoji: event?.emoji ?? "🎉",
     date: event?.date ?? options.date,
     segment: event?.segment ?? options.segment,
     location: event?.location ?? "",
@@ -151,6 +157,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
   const [viewerIdentity, setViewerIdentity] = useState<ViewerIdentity>(defaultIdentity);
   const [isEditing, setIsEditing] = useState(editable);
   const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionPending, setActionPending] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -308,6 +315,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
 
     const payload = {
       title: draft.title,
+      emoji: draft.emoji,
       date: draft.date,
       segment: draft.segment,
       location: draft.location,
@@ -385,6 +393,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       eventId,
       {
         title: event.title,
+        emoji: event.emoji ?? "",
         date,
         segment,
         location: event.location,
@@ -423,8 +432,12 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
   return (
     <div className="space-y-6" dir="rtl">
       <section className="overflow-hidden rounded-[2rem] border border-[var(--panel-border)] bg-[var(--panel)] p-5 shadow-[0_24px_80px_rgba(28,25,23,0.08)] md:p-7">
-        <div className="relative flex flex-col gap-8 xl:flex-row xl:items-end xl:justify-between">
-          <div className="space-y-4">
+        <div
+          className={`relative flex flex-col gap-6 ${
+            editable ? "lg:gap-5" : "xl:flex-row xl:items-end xl:justify-between"
+          }`}
+        >
+          <div className={`space-y-4 ${editable ? "" : ""}`}>
             <div className="flex flex-wrap gap-2">
               <p className="inline-flex rounded-full border border-teal-900/15 bg-teal-900/5 px-3 py-1 text-sm font-medium text-teal-950">
                 {tripWindow.start} עד {tripWindow.end}
@@ -444,12 +457,17 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
             </div>
 
             <div className="space-y-2">
-              <h1 className="text-balance text-4xl font-semibold tracking-tight text-stone-950 sm:text-5xl">
-                לוח הביקור בישראל
+              <h1
+                className={`text-balance font-semibold tracking-tight text-stone-950 ${
+                  editable ? "text-3xl sm:text-4xl" : "text-4xl sm:text-5xl"
+                }`}
+              >
+                {editable ? "מרכז ניהול הביקור" : "לוח הביקור בישראל"}
               </h1>
-              <p className="max-w-3xl text-lg leading-8 text-[var(--muted)]">
-                לוח משפחתי בעברית עם תצוגה שבועית, מצב מובייל, הצעות לאישור, ופאנל אדמין
-                שמרכז את כל מה שממתין לטיפול.
+              <p className={`text-[var(--muted)] ${editable ? "max-w-4xl text-base leading-7" : "max-w-3xl text-lg leading-8"}`}>
+                {editable
+                  ? "ניהול מהיר של האירועים, אישור הצעות, עריכה וגרירה של לוח הזמנים המשפחתי."
+                  : "לוח משפחתי בעברית עם תצוגה שבועית, מצב מובייל, הצעות לאישור, ופאנל אדמין שמרכז את כל מה שממתין לטיפול."}
               </p>
             </div>
 
@@ -460,7 +478,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
             </div>
           </div>
 
-          <div className="flex flex-col gap-3 sm:flex-row xl:flex-col">
+          <div className={`flex flex-col gap-3 sm:flex-row ${editable ? "" : "xl:flex-col"}`}>
             <Link
               href={editable ? "/" : "/admin"}
               className="inline-flex items-center justify-center rounded-full bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800"
@@ -633,8 +651,16 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
         </section>
       ) : null}
 
-      <div className={`grid gap-6 ${editable ? "xl:grid-cols-[minmax(0,1fr)_340px]" : ""}`}>
-        <div className="space-y-5">
+      <div
+        className={`grid gap-6 ${
+          editable
+            ? viewMode === "weeks"
+              ? "grid-cols-1"
+              : "xl:grid-cols-[minmax(0,1fr)_340px]"
+            : ""
+        }`}
+      >
+        <div className="min-w-0 space-y-5">
           {loading ? (
             <section className="rounded-[2rem] border border-[var(--panel-border)] bg-[var(--panel)] p-6 text-center text-stone-600">
               טוען את לוח הזמנים...
@@ -642,7 +668,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
           ) : null}
 
           {!loading && viewMode === "weeks" ? (
-            <section className="space-y-5">
+            <section className="min-w-0 space-y-5">
               {weeks.map((week) => (
                 <WeekSection
                   key={week.id}
@@ -651,10 +677,15 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                   editable={editable}
                   isEditing={isEditing}
                   draggedEventId={draggedEventId}
+                  dropTarget={dropTarget}
                   selectedDay={selectedDay}
                   onSelectDay={setSelectedDay}
                   onDragStart={setDraggedEventId}
-                  onDragEnd={() => setDraggedEventId(null)}
+                  onDragEnd={() => {
+                    setDraggedEventId(null);
+                    setDropTarget(null);
+                  }}
+                  onSetDropTarget={setDropTarget}
                   onMoveEvent={handleMoveEvent}
                   onOpenEvent={(eventId) => setModalState({ type: "details", eventId })}
                   onOpenCreateEvent={openNewEvent}
@@ -691,10 +722,15 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                     editable={editable}
                     isEditing={isEditing}
                     draggedEventId={draggedEventId}
+                    dropTarget={dropTarget}
                     onOpenEvent={(eventId) => setModalState({ type: "details", eventId })}
                     onOpenCreateEvent={openNewEvent}
                     onDragStart={setDraggedEventId}
-                    onDragEnd={() => setDraggedEventId(null)}
+                    onDragEnd={() => {
+                      setDraggedEventId(null);
+                      setDropTarget(null);
+                    }}
+                    onSetDropTarget={setDropTarget}
                     onMoveEvent={handleMoveEvent}
                   />
                 ))}
@@ -767,7 +803,10 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                 {pendingSuggestions.length > 0 ? (
                   pendingSuggestions.map((event) => (
                     <div key={event.id} className="rounded-[1.25rem] border border-stone-200 bg-white p-3">
-                      <p className="font-semibold text-stone-950">{event.title}</p>
+                      <p className="flex items-center gap-2 font-semibold text-stone-950">
+                        {event.emoji ? <span>{event.emoji}</span> : null}
+                        <span>{event.title}</span>
+                      </p>
                       <p className="mt-1 text-sm text-stone-600">
                         {formatDateLabel(event.date)} · {segmentLabels[event.segment]}
                       </p>
@@ -868,10 +907,12 @@ function WeekSection({
   editable,
   isEditing,
   draggedEventId,
+  dropTarget,
   selectedDay,
   onSelectDay,
   onDragStart,
   onDragEnd,
+  onSetDropTarget,
   onMoveEvent,
   onOpenEvent,
   onOpenCreateEvent,
@@ -881,10 +922,12 @@ function WeekSection({
   editable: boolean;
   isEditing: boolean;
   draggedEventId: string | null;
+  dropTarget: DropTarget | null;
   selectedDay: string;
   onSelectDay: (date: string) => void;
   onDragStart: (eventId: string) => void;
   onDragEnd: () => void;
+  onSetDropTarget: (target: DropTarget | null) => void;
   onMoveEvent: (eventId: string, date: string, segment: SegmentId) => Promise<void>;
   onOpenEvent: (eventId: string) => void;
   onOpenCreateEvent: (date: string, segment: SegmentId) => void;
@@ -895,9 +938,12 @@ function WeekSection({
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-stone-500">{week.label}</p>
       </div>
 
-      <div className="hidden overflow-x-auto lg:block" dir="rtl">
-        <div className="min-w-[1180px]">
-          <div className="grid grid-cols-[repeat(7,minmax(0,1fr))_110px] border-b border-stone-200 bg-white/75">
+      <div className="hidden overflow-x-auto md:block" dir="rtl">
+        <div className="min-w-[860px] xl:min-w-[1020px]">
+          <div className="grid grid-cols-[96px_repeat(7,minmax(0,1fr))] border-b border-stone-200 bg-white/75">
+            <div className="border-s border-stone-200 px-2 py-4 text-center text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">
+              חלק ביום
+            </div>
             {week.days.map((day) => (
               <DayHeaderCell
                 key={day.date}
@@ -906,16 +952,17 @@ function WeekSection({
                 onClick={() => onSelectDay(day.date)}
               />
             ))}
-            <div className="px-3 py-4 text-center text-xs font-semibold uppercase tracking-[0.18em] text-stone-400">
-              חלק ביום
-            </div>
           </div>
 
           {segments.map((segment) => (
             <div
               key={segment}
-              className="grid grid-cols-[repeat(7,minmax(0,1fr))_110px] border-b border-stone-200 last:border-b-0"
+              className="grid grid-cols-[96px_repeat(7,minmax(0,1fr))] border-b border-stone-200 last:border-b-0"
             >
+              <div className="border-s border-stone-200 bg-white/70 px-2 py-4" dir="rtl">
+                <p className="text-sm font-semibold text-stone-800">{segmentLabels[segment]}</p>
+                <p className="mt-1 text-xs text-stone-500">{segmentTimes[segment]}</p>
+              </div>
               {week.days.map((day) => (
                 <ScheduleDropZone
                   key={`${day.date}-${segment}`}
@@ -925,23 +972,21 @@ function WeekSection({
                   editable={editable}
                   isEditing={isEditing}
                   draggedEventId={draggedEventId}
+                  dropTarget={dropTarget}
                   onOpenEvent={onOpenEvent}
                   onOpenCreateEvent={onOpenCreateEvent}
                   onDragStart={onDragStart}
                   onDragEnd={onDragEnd}
+                  onSetDropTarget={onSetDropTarget}
                   onMoveEvent={onMoveEvent}
                 />
               ))}
-              <div className="bg-white/70 px-3 py-4" dir="rtl">
-                <p className="text-sm font-semibold text-stone-800">{segmentLabels[segment]}</p>
-                <p className="mt-1 text-xs text-stone-500">{segmentTimes[segment]}</p>
-              </div>
             </div>
           ))}
         </div>
       </div>
 
-      <div className="grid gap-4 p-4 lg:hidden">
+      <div className="grid gap-4 p-4 md:hidden">
         {week.days.map((day) => (
           <div
             key={day.date}
@@ -977,10 +1022,12 @@ function WeekSection({
                   editable={editable}
                   isEditing={isEditing}
                   draggedEventId={draggedEventId}
+                  dropTarget={dropTarget}
                   onOpenEvent={onOpenEvent}
                   onOpenCreateEvent={onOpenCreateEvent}
                   onDragStart={onDragStart}
                   onDragEnd={onDragEnd}
+                  onSetDropTarget={onSetDropTarget}
                   onMoveEvent={onMoveEvent}
                 />
               ))}
@@ -1005,7 +1052,7 @@ function DayHeaderCell({
     <button
       type="button"
       onClick={onClick}
-      className={`border-r border-stone-200 px-3 py-4 text-center transition ${
+      className={`border-s border-stone-200 px-3 py-4 text-center transition ${
         day.inTripRange
           ? selected
             ? "bg-stone-950 text-white"
@@ -1028,10 +1075,12 @@ function ScheduleDropZone({
   editable,
   isEditing,
   draggedEventId,
+  dropTarget,
   onOpenEvent,
   onOpenCreateEvent,
   onDragStart,
   onDragEnd,
+  onSetDropTarget,
   onMoveEvent,
 }: {
   day: CalendarDay;
@@ -1040,17 +1089,36 @@ function ScheduleDropZone({
   editable: boolean;
   isEditing: boolean;
   draggedEventId: string | null;
+  dropTarget: DropTarget | null;
   onOpenEvent: (eventId: string) => void;
   onOpenCreateEvent: (date: string, segment: SegmentId) => void;
   onDragStart: (eventId: string) => void;
   onDragEnd: () => void;
+  onSetDropTarget: (target: DropTarget | null) => void;
   onMoveEvent: (eventId: string, date: string, segment: SegmentId) => Promise<void>;
 }) {
+  const isActiveDropTarget =
+    draggedEventId !== null &&
+    dropTarget?.date === day.date &&
+    dropTarget?.segment === segment;
+
   return (
     <div
       onDragOver={(event) => {
         if (editable && isEditing && day.inTripRange) {
           event.preventDefault();
+          onSetDropTarget({ date: day.date, segment });
+        }
+      }}
+      onDragEnter={(event) => {
+        if (editable && isEditing && day.inTripRange) {
+          event.preventDefault();
+          onSetDropTarget({ date: day.date, segment });
+        }
+      }}
+      onDragLeave={(event) => {
+        if (editable && isEditing && isActiveDropTarget && !event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          onSetDropTarget(null);
         }
       }}
       onDrop={(event) => {
@@ -1060,11 +1128,28 @@ function ScheduleDropZone({
           onDragEnd();
         }
       }}
-      className={`min-h-40 border-r border-stone-200 px-2 py-2 align-top ${
-        day.inTripRange ? "bg-white/75" : "bg-stone-200/45"
+      className={`min-h-40 border-s border-stone-200 px-2 py-2 align-top ${
+        day.inTripRange
+          ? isActiveDropTarget
+            ? "bg-teal-50/80"
+            : "bg-white/75"
+          : "bg-stone-200/45"
       }`}
     >
-      <div className="flex h-full flex-col gap-2" dir="rtl">
+      <div
+        className={`relative flex h-full flex-col gap-2 rounded-[1.1rem] transition ${
+          isActiveDropTarget ? "ring-2 ring-teal-400 ring-offset-2 ring-offset-teal-50/60" : ""
+        }`}
+        dir="rtl"
+      >
+        {isActiveDropTarget ? (
+          <div className="pointer-events-none absolute inset-0 rounded-[1.1rem] border-2 border-dashed border-teal-400 bg-teal-100/35" />
+        ) : null}
+        {isActiveDropTarget ? (
+          <div className="pointer-events-none absolute left-2 top-2 z-10 rounded-full bg-teal-600 px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm">
+            שחרור כאן
+          </div>
+        ) : null}
         {events.length > 0 ? (
           events.map((event) => (
             <EventCard
@@ -1084,7 +1169,9 @@ function ScheduleDropZone({
             onClick={() => onOpenCreateEvent(day.date, segment)}
             className={`flex h-full min-h-28 items-center justify-center rounded-2xl border border-dashed px-3 text-sm transition ${
               day.inTripRange
-                ? "border-stone-300 text-stone-500 hover:border-stone-500 hover:bg-stone-100/60"
+                ? isActiveDropTarget
+                  ? "border-teal-500 bg-teal-50 text-teal-900"
+                  : "border-stone-300 text-stone-500 hover:border-stone-500 hover:bg-stone-100/60"
                 : "border-stone-300/60 text-stone-400/80"
             }`}
           >
@@ -1109,10 +1196,12 @@ function SegmentPanel({
   editable,
   isEditing,
   draggedEventId,
+  dropTarget,
   onOpenEvent,
   onOpenCreateEvent,
   onDragStart,
   onDragEnd,
+  onSetDropTarget,
   onMoveEvent,
 }: {
   day: CalendarDay;
@@ -1121,17 +1210,36 @@ function SegmentPanel({
   editable: boolean;
   isEditing: boolean;
   draggedEventId: string | null;
+  dropTarget: DropTarget | null;
   onOpenEvent: (eventId: string) => void;
   onOpenCreateEvent: (date: string, segment: SegmentId) => void;
   onDragStart: (eventId: string) => void;
   onDragEnd: () => void;
+  onSetDropTarget: (target: DropTarget | null) => void;
   onMoveEvent: (eventId: string, date: string, segment: SegmentId) => Promise<void>;
 }) {
+  const isActiveDropTarget =
+    draggedEventId !== null &&
+    dropTarget?.date === day.date &&
+    dropTarget?.segment === segment;
+
   return (
     <div
       onDragOver={(event) => {
         if (editable && isEditing && day.inTripRange) {
           event.preventDefault();
+          onSetDropTarget({ date: day.date, segment });
+        }
+      }}
+      onDragEnter={(event) => {
+        if (editable && isEditing && day.inTripRange) {
+          event.preventDefault();
+          onSetDropTarget({ date: day.date, segment });
+        }
+      }}
+      onDragLeave={(event) => {
+        if (editable && isEditing && isActiveDropTarget && !event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          onSetDropTarget(null);
         }
       }}
       onDrop={(event) => {
@@ -1142,7 +1250,11 @@ function SegmentPanel({
         }
       }}
       className={`rounded-[1.5rem] border p-3 ${
-        day.inTripRange ? "border-stone-200 bg-white" : "border-stone-200 bg-stone-100/70"
+        day.inTripRange
+          ? isActiveDropTarget
+            ? "border-teal-400 bg-teal-50/80 shadow-[0_0_0_3px_rgba(45,212,191,0.15)]"
+            : "border-stone-200 bg-white"
+          : "border-stone-200 bg-stone-100/70"
       }`}
     >
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -1178,10 +1290,20 @@ function SegmentPanel({
             disabled={!day.inTripRange}
             onClick={() => onOpenCreateEvent(day.date, segment)}
             className={`rounded-2xl border border-dashed px-4 py-6 text-sm ${
-              day.inTripRange ? "border-stone-300 text-stone-500 hover:bg-stone-50" : "border-stone-300/60 text-stone-400/80"
+              day.inTripRange
+                ? isActiveDropTarget
+                  ? "border-teal-500 bg-teal-50 text-teal-900"
+                  : "border-stone-300 text-stone-500 hover:bg-stone-50"
+                : "border-stone-300/60 text-stone-400/80"
             }`}
           >
-            {day.inTripRange ? (editable ? "לחצו ליצירת אירוע חדש" : "לחצו להצעת אירוע") : "מחוץ לטווח הביקור"}
+            {day.inTripRange
+              ? isActiveDropTarget
+                ? "שחררו כאן את האירוע"
+                : editable
+                  ? "לחצו ליצירת אירוע חדש"
+                  : "לחצו להצעת אירוע"
+              : "מחוץ לטווח הביקור"}
           </button>
         )}
       </div>
@@ -1204,7 +1326,7 @@ function EventCard({
   onDragEnd: () => void;
   onClick: () => void;
 }) {
-  const primaryPerson = getPrimaryPerson(event);
+  const attendeeNames = event.attendees.map((personId) => getPerson(personId).name).join(" · ");
 
   return (
     <button
@@ -1213,8 +1335,8 @@ function EventCard({
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       onClick={onClick}
-      className={`rounded-2xl border bg-white/95 p-3 text-right shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
-        compact ? "min-h-[132px]" : ""
+      className={`rounded-2xl border bg-white/95 text-right shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+        compact ? "p-2.5" : "p-3"
       } ${
         event.status === "pending"
           ? "border-amber-300 border-dashed"
@@ -1223,14 +1345,16 @@ function EventCard({
             : "border-white/70"
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <span className={`mt-1 h-3.5 w-3.5 shrink-0 rounded-full ${primaryPerson.colorClass}`} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-base font-semibold leading-7 text-stone-900">{event.title}</p>
+      {compact ? (
+        <div className="min-w-0">
+          <div className="flex items-center justify-end gap-1.5">
+            {event.emoji ? <span className="text-base leading-none">{event.emoji}</span> : null}
+            <AttendeeMarkers attendees={event.attendees} compact />
             {event.status !== "approved" ? (
               <span
-                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                className={`rounded-full font-semibold ${
+                  compact ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]"
+                } ${
                   event.status === "pending"
                     ? "bg-amber-100 text-amber-950"
                     : "bg-rose-100 text-rose-900"
@@ -1240,28 +1364,105 @@ function EventCard({
               </span>
             ) : null}
           </div>
-          <p className="mt-1 text-sm text-stone-600">{event.location}</p>
-          <p className="mt-1 text-xs font-medium text-stone-500">{segmentLabels[event.segment]}</p>
+          <p
+            className="mt-1 text-sm font-semibold leading-5 text-stone-900"
+            style={{
+              display: "-webkit-box",
+              WebkitLineClamp: 3,
+              WebkitBoxOrient: "vertical",
+              overflow: "hidden",
+            }}
+          >
+            {event.title}
+          </p>
+          <p className="mt-0.5 text-[11px] text-stone-600">
+            {event.location} · {segmentLabels[event.segment]}
+          </p>
           {event.suggestedByName ? (
-            <p className="mt-1 text-xs text-stone-500">הציע/ה: {event.suggestedByName}</p>
+            <p className="mt-0.5 text-[11px] text-stone-500">הציע/ה: {event.suggestedByName}</p>
           ) : null}
         </div>
-      </div>
+      ) : (
+        <div className="min-w-0">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                {event.emoji ? <span className="text-lg leading-none">{event.emoji}</span> : null}
+                <p className="text-base font-semibold leading-7 text-stone-900">{event.title}</p>
+                {event.status !== "approved" ? (
+                  <span
+                    className={`rounded-full font-semibold px-2 py-0.5 text-[11px] ${
+                      event.status === "pending"
+                        ? "bg-amber-100 text-amber-950"
+                        : "bg-rose-100 text-rose-900"
+                    }`}
+                  >
+                    {event.status === "pending" ? "ממתין לאישור" : "נדחה"}
+                  </span>
+                ) : null}
+              </div>
+              <p className="mt-1 text-sm text-stone-600">{event.location}</p>
+              <p className="mt-1 text-xs font-medium text-stone-500">{segmentLabels[event.segment]}</p>
+              {event.suggestedByName ? (
+                <p className="mt-1 text-xs text-stone-500">הציע/ה: {event.suggestedByName}</p>
+              ) : null}
+            </div>
+            <AttendeeMarkers attendees={event.attendees} compact={false} />
+          </div>
+        </div>
+      )}
 
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {event.attendees.map((personId) => {
-          const person = getPerson(personId);
-          return (
-            <span
-              key={personId}
-              className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${person.chipClass}`}
-            >
-              {person.name}
-            </span>
-          );
-        })}
-      </div>
+      {compact ? (
+        <p
+          className="mt-1.5 text-[10px] font-medium text-stone-500"
+          style={{
+            display: "-webkit-box",
+            WebkitLineClamp: 1,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {attendeeNames}
+        </p>
+      ) : (
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {event.attendees.map((personId) => {
+            const person = getPerson(personId);
+            return (
+              <span
+                key={personId}
+                className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${person.chipClass}`}
+              >
+                {person.name}
+              </span>
+            );
+          })}
+        </div>
+      )}
     </button>
+  );
+}
+
+function AttendeeMarkers({
+  attendees,
+  compact,
+}: {
+  attendees: PersonId[];
+  compact: boolean;
+}) {
+  return (
+    <div className={`flex shrink-0 items-center ${compact ? "-space-x-1.5 pt-0.5" : "-space-x-2 mt-1"}`} aria-hidden="true">
+      {attendees.map((personId) => {
+        const person = getPerson(personId);
+        return (
+          <span
+            key={personId}
+            className={`rounded-full ring-2 ring-white ${compact ? "h-4 w-4" : "h-5 w-5"} ${person.colorClass}`}
+            title={person.name}
+          />
+        );
+      })}
+    </div>
   );
 }
 
@@ -1350,7 +1551,10 @@ function EventDetailsModal({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">פרטי אירוע</p>
-            <h2 className="mt-2 text-3xl font-semibold text-stone-950">{event.title}</h2>
+            <h2 className="mt-2 flex items-center gap-2 text-3xl font-semibold text-stone-950">
+              {event.emoji ? <span>{event.emoji}</span> : null}
+              <span>{event.title}</span>
+            </h2>
           </div>
           <div className="flex gap-2">
             {editable && isEditing ? (
@@ -1435,7 +1639,11 @@ function EventFormModal({
               {mode === "admin" ? (existingEvent ? "עריכת אירוע" : "יצירת אירוע") : "הצעת אירוע"}
             </p>
             <h2 className="mt-2 text-3xl font-semibold text-stone-950">
-              {existingEvent ? existingEvent.title : mode === "admin" ? "אירוע חדש בלוח" : "הצעה חדשה לאדמין"}
+              {existingEvent
+                ? `${existingEvent.emoji ? `${existingEvent.emoji} ` : ""}${existingEvent.title}`
+                : mode === "admin"
+                  ? "אירוע חדש בלוח"
+                  : "הצעה חדשה לאדמין"}
             </h2>
           </div>
           <button
@@ -1455,6 +1663,28 @@ function EventFormModal({
               className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
               placeholder="למשל ארוחת ערב משפחתית"
             />
+          </Field>
+
+          <Field label="אימוג'י">
+            <div className="flex flex-wrap gap-2 rounded-2xl border border-stone-300 bg-stone-50 p-3">
+              {eventEmojiOptions.map((emoji) => {
+                const active = formState.emoji === emoji;
+                return (
+                  <button
+                    key={emoji}
+                    type="button"
+                    onClick={() => setFormState((current) => ({ ...current, emoji }))}
+                    className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-xl transition ${
+                      active
+                        ? "border-stone-950 bg-stone-950 text-white"
+                        : "border-stone-200 bg-white hover:border-stone-400"
+                    }`}
+                  >
+                    {emoji}
+                  </button>
+                );
+              })}
+            </div>
           </Field>
 
           <Field label="מיקום">

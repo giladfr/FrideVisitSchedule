@@ -13,6 +13,7 @@ export type Person = {
 export type TripEvent = {
   id: string;
   title: string;
+  emoji?: string;
   date: string;
   segment: SegmentId;
   attendees: PersonId[];
@@ -84,6 +85,21 @@ export const segmentTimes: Record<SegmentId, string> = {
   night: "20:00-23:30",
 };
 
+export const eventEmojiOptions = [
+  "🎉",
+  "🍽️",
+  "✈️",
+  "🏖️",
+  "🏠",
+  "🚗",
+  "👨‍👩‍👧‍👦",
+  "🧳",
+  "🎈",
+  "☕",
+  "🏞️",
+  "🎭",
+] as const;
+
 export const hebrewWeekdays = [
   "יום ראשון",
   "יום שני",
@@ -98,6 +114,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "arrival",
     title: "נחיתה ואיסוף משדה התעופה",
+    emoji: "✈️",
     date: "2026-06-03",
     segment: "evening",
     attendees: ["gilad", "yaara", "kids"],
@@ -109,6 +126,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "first-breakfast",
     title: "ארוחת בוקר רגועה עם המשפחה",
+    emoji: "☕",
     date: "2026-06-04",
     segment: "morning",
     attendees: ["gilad", "yaara", "kids"],
@@ -119,6 +137,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "gilad-meeting",
     title: "פגישת עבודה",
+    emoji: "💼",
     date: "2026-06-04",
     segment: "evening",
     attendees: ["gilad"],
@@ -129,6 +148,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "yaara-family",
     title: "קפה עם המשפחה",
+    emoji: "☕",
     date: "2026-06-05",
     segment: "noon",
     attendees: ["yaara"],
@@ -139,6 +159,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "park",
     title: "פארק וארוחת ערב",
+    emoji: "🌳",
     date: "2026-06-07",
     segment: "evening",
     attendees: ["gilad", "yaara", "kids"],
@@ -149,6 +170,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "kids-play",
     title: "מפגש משחק לילדים",
+    emoji: "🎈",
     date: "2026-06-08",
     segment: "evening",
     attendees: ["kids"],
@@ -159,6 +181,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "beach",
     title: "יום ים",
+    emoji: "🏖️",
     date: "2026-06-10",
     segment: "noon",
     attendees: ["gilad", "yaara", "kids"],
@@ -169,6 +192,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "dinner",
     title: "ארוחת ערב אצל קרובים",
+    emoji: "🍽️",
     date: "2026-06-12",
     segment: "night",
     attendees: ["gilad", "yaara", "kids"],
@@ -179,6 +203,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "gilad-friends",
     title: "פגישה עם חבר ותיק",
+    emoji: "🤝",
     date: "2026-06-14",
     segment: "morning",
     attendees: ["gilad"],
@@ -189,6 +214,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "museum",
     title: "מוזיאון",
+    emoji: "🎭",
     date: "2026-06-15",
     segment: "morning",
     attendees: ["gilad", "yaara", "kids"],
@@ -199,6 +225,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "yaara-lunch",
     title: "צהריים עם יערה והמשפחה",
+    emoji: "🍽️",
     date: "2026-06-17",
     segment: "noon",
     attendees: ["yaara"],
@@ -209,6 +236,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "north-trip",
     title: "טיול לצפון",
+    emoji: "🏞️",
     date: "2026-06-18",
     segment: "morning",
     attendees: ["gilad", "yaara", "kids"],
@@ -219,6 +247,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "north-dinner",
     title: "ארוחת ערב בדרך חזרה",
+    emoji: "🍽️",
     date: "2026-06-18",
     segment: "night",
     attendees: ["gilad", "yaara", "kids"],
@@ -229,6 +258,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "shabbat",
     title: "ארוחת שישי",
+    emoji: "🕯️",
     date: "2026-06-19",
     segment: "night",
     attendees: ["gilad", "yaara", "kids"],
@@ -239,6 +269,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "kids-pool",
     title: "בריכה לילדים",
+    emoji: "🏊",
     date: "2026-06-22",
     segment: "evening",
     attendees: ["kids"],
@@ -249,6 +280,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "packing",
     title: "אריזות וסידורים לפני הטיסה",
+    emoji: "🧳",
     date: "2026-06-23",
     segment: "night",
     attendees: ["gilad", "yaara", "kids"],
@@ -259,6 +291,7 @@ export const demoEvents: TripEvent[] = [
   {
     id: "departure",
     title: "יציאה לשדה",
+    emoji: "🚗",
     date: "2026-06-24",
     segment: "morning",
     attendees: ["gilad", "yaara", "kids"],

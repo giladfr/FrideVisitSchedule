@@ -6,6 +6,7 @@ import { ScheduleBoard } from "@/components/schedule-board";
 import {
   ADMIN_COOKIE_NAME,
   hasAdminPasswordConfigured,
+  isLocalAdminBypassEnabled,
   isAdminSessionValid,
 } from "@/lib/admin-auth";
 
@@ -42,6 +43,11 @@ export default async function AdminPage({
           <p className="mt-1 font-semibold">
             מצב העריכה פתוח עבור הביקור בין 3 ביוני 2026 ל-24 ביוני 2026.
           </p>
+          {isLocalAdminBypassEnabled() ? (
+            <p className="mt-1 text-sm text-sky-700">
+              עקיפת סיסמה פעילה בסביבה המקומית בלבד.
+            </p>
+          ) : null}
         </div>
 
         <div className="flex gap-3">
@@ -51,14 +57,16 @@ export default async function AdminPage({
           >
             חזרה לדף הציבורי
           </Link>
-          <form action="/api/admin/logout" method="post">
-            <button
-              type="submit"
-              className="rounded-full bg-sky-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-900"
-            >
-              יציאה ממצב אדמין
-            </button>
-          </form>
+          {!isLocalAdminBypassEnabled() ? (
+            <form action="/api/admin/logout" method="post">
+              <button
+                type="submit"
+                className="rounded-full bg-sky-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-900"
+              >
+                יציאה ממצב אדמין
+              </button>
+            </form>
+          ) : null}
         </div>
       </div>
 

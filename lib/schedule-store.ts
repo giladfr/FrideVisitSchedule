@@ -9,6 +9,7 @@ import {
 type EventRow = {
   id: string;
   title: string;
+  emoji: string | null;
   event_date: string;
   segment: SegmentId;
   attendees: PersonId[];
@@ -30,6 +31,7 @@ export type ScheduleSnapshot = {
 
 export type EventMutationInput = {
   title: string;
+  emoji?: string;
   date: string;
   segment: SegmentId;
   attendees: PersonId[];
@@ -43,6 +45,7 @@ function mapRow(row: EventRow): TripEvent {
   return {
     id: row.id,
     title: row.title,
+    emoji: row.emoji ?? undefined,
     date: row.event_date,
     segment: row.segment,
     attendees: row.attendees,
@@ -66,6 +69,7 @@ function mapInput(
 ) {
   return {
     title: input.title,
+    emoji: input.emoji?.trim() ? input.emoji.trim() : null,
     event_date: input.date,
     segment: input.segment,
     attendees: input.attendees,
@@ -228,6 +232,7 @@ export async function seedDemoEvents() {
   const rows = demoEvents.map((event) => ({
     id: event.id,
     title: event.title,
+    emoji: event.emoji ?? null,
     event_date: event.date,
     segment: event.segment,
     attendees: event.attendees,

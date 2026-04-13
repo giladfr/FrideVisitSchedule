@@ -13,6 +13,7 @@ set admin_password_hash = excluded.admin_password_hash;
 create table if not exists public.visit_events (
   id text primary key default gen_random_uuid()::text,
   title text not null,
+  emoji text null,
   event_date date not null,
   segment text not null check (segment in ('morning', 'noon', 'evening', 'night')),
   attendees text[] not null default '{}',
@@ -27,6 +28,8 @@ create table if not exists public.visit_events (
   created_at timestamptz not null default timezone('utc', now()),
   updated_at timestamptz not null default timezone('utc', now())
 );
+
+alter table public.visit_events add column if not exists emoji text null;
 
 create or replace function public.request_headers()
 returns jsonb
@@ -55,7 +58,7 @@ as $$
     select 1
     from public.visit_app_config
     where admin_password_hash = encode(
-      digest('fride-visit:' || public.request_header('x-admin-password'), 'sha256'),
+      extensions.digest('fride-visit:' || public.request_header('x-admin-password'), 'sha256'),
       'hex'
     )
   );
