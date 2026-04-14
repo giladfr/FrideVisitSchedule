@@ -108,6 +108,13 @@ function getAttendeeSummary(event: TripEvent) {
   return event.attendees.map((personId) => getPerson(personId).name).join(" · ");
 }
 
+function isFullFamily(attendees: PersonId[]) {
+  return (
+    attendees.length === people.length &&
+    people.every((person) => attendees.includes(person.id))
+  );
+}
+
 function sortEvents(events: TripEvent[]) {
   return [...events].sort((left, right) => {
     if (left.date !== right.date) {
@@ -399,21 +406,49 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       return;
     }
 
-    await patchEvent(
-      eventId,
-      {
-        title: event.title,
-        emoji: event.emoji ?? "",
-        date,
-        segment,
-        location: event.location,
-        notes: event.notes ?? "",
-        attendees: event.attendees,
-        suggestedByName: event.suggestedByName,
-        suggestedByPerson: event.suggestedByPerson,
-      },
-      "האירוע הועבר בלוח.",
+    const previousEvents = events;
+    const movedEvent: TripEvent = {
+      ...event,
+      date,
+      segment,
+      updatedAt: new Date().toISOString(),
+    };
+
+    setErrorMessage(null);
+    setEvents((current) =>
+      sortEvents(current.map((item) => (item.id === eventId ? movedEvent : item))),
     );
+
+    try {
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          title: event.title,
+          emoji: event.emoji ?? "",
+          date,
+          segment,
+          location: event.location,
+          notes: event.notes ?? "",
+          attendees: event.attendees,
+          suggestedByName: event.suggestedByName,
+          suggestedByPerson: event.suggestedByPerson,
+        }),
+      });
+
+      const payload = await readJson<{ event?: TripEvent }>(response);
+      if (payload.event) {
+        setEvents((current) =>
+          sortEvents(current.map((item) => (item.id === eventId ? payload.event! : item))),
+        );
+      }
+      setNotice("האירוע הועבר בלוח.");
+    } catch (error) {
+      setEvents(previousEvents);
+      setErrorMessage(error instanceof Error ? error.message : "העברת האירוע נכשלה.");
+    }
   }
 
   async function handleSeedDemo() {
@@ -528,9 +563,8 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
               <ViewButton
                 active={viewMode === "mobileWeek"}
                 onClick={() => setViewMode("mobileWeek")}
-                className="xl:hidden"
               >
-                שבוע נייד
+                שבוע אג׳נדה
               </ViewButton>
             </div>
           </div>
@@ -555,9 +589,11 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
               {people.map((person) => (
                 <span
                   key={person.id}
-                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${person.chipClass}`}
+                  className="inline-flex items-center gap-2 rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-800"
                 >
-                  <span className={`h-2.5 w-2.5 rounded-full ${person.colorClass}`} />
+                  <span className="text-sm leading-none" aria-hidden="true">
+                    {person.personEmoji}
+                  </span>
                   {person.name}
                 </span>
               ))}
@@ -1128,7 +1164,7 @@ function MobileWeekAgenda({
   const canGoNext = selectedWeekIndex < weeks.length - 1;
 
   return (
-    <div className="space-y-4 xl:hidden">
+    <div className="space-y-4">
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">{week.label}</p>
@@ -1740,8 +1776,11 @@ function EventCard({
             return (
               <span
                 key={personId}
-                className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${person.chipClass}`}
+                className="rounded-full border border-stone-200 bg-white px-2 py-1 text-[11px] font-semibold text-stone-800"
               >
+                <span className="ml-1" aria-hidden="true">
+                  {person.personEmoji}
+                </span>
                 {person.name}
               </span>
             );
@@ -1759,6 +1798,23 @@ function AttendeeMarkers({
   attendees: PersonId[];
   compact: boolean;
 }) {
+  if (isFullFamily(attendees)) {
+    return (
+      <div className={`flex shrink-0 items-center ${compact ? "pt-0.5" : "mt-1"}`} aria-hidden="true">
+        <span
+          className={`inline-flex items-center justify-center gap-0.5 rounded-full border border-white bg-white ring-2 ring-white shadow-sm ${
+            compact ? "h-5 px-1.5 text-[10px]" : "h-7 px-2 text-xs"
+          }`}
+          title="כל המשפחה"
+        >
+          <span>👨</span>
+          <span>👩</span>
+          <span>🧒</span>
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div className={`flex shrink-0 items-center ${compact ? "-space-x-1.5 pt-0.5" : "-space-x-2 mt-1"}`} aria-hidden="true">
       {attendees.map((personId) => {
@@ -1766,9 +1822,11 @@ function AttendeeMarkers({
         return (
           <span
             key={personId}
-            className={`rounded-full ring-2 ring-white ${compact ? "h-4 w-4" : "h-5 w-5"} ${person.colorClass}`}
+            className={`inline-flex items-center justify-center rounded-full border border-white bg-white ring-2 ring-white shadow-sm ${compact ? "h-5 w-5 text-[11px]" : "h-7 w-7 text-sm"}`}
             title={person.name}
-          />
+          >
+            {person.personEmoji}
+          </span>
         );
       })}
     </div>

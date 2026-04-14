@@ -6,6 +6,7 @@ export type Person = {
   id: PersonId;
   name: string;
   shortName: string;
+  personEmoji: string;
   colorClass: string;
   chipClass: string;
 };
@@ -52,6 +53,7 @@ export const people: Person[] = [
     id: "gilad",
     name: "גלעד",
     shortName: "ג",
+    personEmoji: "👨",
     colorClass: "bg-teal-500",
     chipClass: "bg-teal-100 text-teal-950 border-teal-200",
   },
@@ -59,6 +61,7 @@ export const people: Person[] = [
     id: "yaara",
     name: "יערה",
     shortName: "י",
+    personEmoji: "👩",
     colorClass: "bg-amber-400",
     chipClass: "bg-amber-100 text-amber-950 border-amber-200",
   },
@@ -66,6 +69,7 @@ export const people: Person[] = [
     id: "kids",
     name: "ילדים",
     shortName: "י",
+    personEmoji: "🧒",
     colorClass: "bg-sky-500",
     chipClass: "bg-sky-100 text-sky-950 border-sky-200",
   },
