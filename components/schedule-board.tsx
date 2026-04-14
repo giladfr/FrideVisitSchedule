@@ -57,6 +57,7 @@ const IDENTITY_STORAGE_KEY = "fride-visit-identity";
 const weeks = buildCalendarWeeks();
 const segments: SegmentId[] = ["morning", "noon", "evening", "night"];
 const tripDays = weeks.flatMap((week) => week.days).filter((day) => day.inTripRange);
+type CalendarWeek = ReturnType<typeof buildCalendarWeeks>[number];
 
 function defaultIdentity(): ViewerIdentity {
   return {
@@ -101,6 +102,10 @@ function formatDateLabel(date: string) {
     day: "numeric",
     month: "long",
   }).format(new Date(`${date}T12:00:00`));
+}
+
+function getAttendeeSummary(event: TripEvent) {
+  return event.attendees.map((personId) => getPerson(personId).name).join(" · ");
 }
 
 function sortEvents(events: TripEvent[]) {
@@ -523,7 +528,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
               <ViewButton
                 active={viewMode === "mobileWeek"}
                 onClick={() => setViewMode("mobileWeek")}
-                className="md:hidden"
+                className="xl:hidden"
               >
                 שבוע נייד
               </ViewButton>
@@ -753,7 +758,9 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
           {!loading && viewMode === "mobileWeek" ? (
             <section className="rounded-[2rem] border border-[var(--panel-border)] bg-[var(--panel)] p-4 shadow-[0_18px_60px_rgba(28,25,23,0.06)] md:p-6">
               <MobileWeekAgenda
+                weeks={weeks}
                 week={selectedWeek}
+                selectedWeekIndex={weeks.findIndex((week) => week.id === selectedWeek.id)}
                 events={filteredEvents}
                 editable={editable}
                 isEditing={isEditing}
@@ -761,6 +768,11 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                 dropTarget={dropTarget}
                 selectedDay={selectedDay}
                 onSelectDay={setSelectedDay}
+                onChangeWeek={(nextWeek) => {
+                  const preferredDay =
+                    nextWeek.days.find((day) => day.inTripRange) ?? nextWeek.days[0];
+                  setSelectedDay(preferredDay.date);
+                }}
                 onOpenEvent={(eventId) => setModalState({ type: "details", eventId })}
                 onOpenCreateEvent={openNewEvent}
                 onDragStart={setDraggedEventId}
@@ -1076,7 +1088,9 @@ function WeekSection({
 }
 
 function MobileWeekAgenda({
+  weeks,
   week,
+  selectedWeekIndex,
   events,
   editable,
   isEditing,
@@ -1084,6 +1098,7 @@ function MobileWeekAgenda({
   dropTarget,
   selectedDay,
   onSelectDay,
+  onChangeWeek,
   onOpenEvent,
   onOpenCreateEvent,
   onDragStart,
@@ -1091,7 +1106,9 @@ function MobileWeekAgenda({
   onSetDropTarget,
   onMoveEvent,
 }: {
-  week: (typeof weeks)[number];
+  weeks: CalendarWeek[];
+  week: CalendarWeek;
+  selectedWeekIndex: number;
   events: TripEvent[];
   editable: boolean;
   isEditing: boolean;
@@ -1099,6 +1116,7 @@ function MobileWeekAgenda({
   dropTarget: DropTarget | null;
   selectedDay: string;
   onSelectDay: (date: string) => void;
+  onChangeWeek: (week: CalendarWeek) => void;
   onOpenEvent: (eventId: string) => void;
   onOpenCreateEvent: (date: string, segment: SegmentId) => void;
   onDragStart: (eventId: string) => void;
@@ -1106,57 +1124,86 @@ function MobileWeekAgenda({
   onSetDropTarget: (target: DropTarget | null) => void;
   onMoveEvent: (eventId: string, date: string, segment: SegmentId) => Promise<void>;
 }) {
+  const canGoPrevious = selectedWeekIndex > 0;
+  const canGoNext = selectedWeekIndex < weeks.length - 1;
+
   return (
-    <div className="space-y-4 md:hidden">
+    <div className="space-y-4 xl:hidden">
       <div className="flex items-end justify-between gap-3">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">{week.label}</p>
           <h2 className="mt-1 text-xl font-semibold text-stone-950">שבוע מלא במבט נייד</h2>
         </div>
-        <div className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-600">
-          7 ימים יחד
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={!canGoPrevious}
+            onClick={() => canGoPrevious && onChangeWeek(weeks[selectedWeekIndex - 1])}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-lg font-semibold text-stone-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label="previous week"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            disabled={!canGoNext}
+            onClick={() => canGoNext && onChangeWeek(weeks[selectedWeekIndex + 1])}
+            className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-stone-200 bg-white text-lg font-semibold text-stone-700 transition hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-35"
+            aria-label="next week"
+          >
+            ›
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-1 rounded-[1.5rem] border border-stone-200 bg-white/80 p-2">
-        {week.days.map((day) => (
-          <button
-            key={day.date}
-            type="button"
-            onClick={() => onSelectDay(day.date)}
-            className={`rounded-2xl px-1 py-2 text-center transition ${
-              day.inTripRange
-                ? selectedDay === day.date
-                  ? "bg-stone-950 text-white"
-                  : "bg-stone-50 text-stone-900"
-                : "bg-stone-100/70 text-stone-400"
-            }`}
-          >
-            <p className="text-[10px] font-semibold">{day.dayName.replace("יום ", "")}</p>
-            <p className="mt-1 text-2xl font-semibold leading-none">{day.dayNumber}</p>
-          </button>
-        ))}
+      <div className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-600">
+        שבוע שלם עם גלילה אופקית קלה כדי לשמור על קריאות נוחה
       </div>
 
-      <div className="space-y-2">
-        {segments.map((segment) => (
-          <MobileAgendaRow
-            key={segment}
-            week={week}
-            segment={segment}
-            events={events}
-            editable={editable}
-            isEditing={isEditing}
-            draggedEventId={draggedEventId}
-            dropTarget={dropTarget}
-            onOpenEvent={onOpenEvent}
-            onOpenCreateEvent={onOpenCreateEvent}
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
-            onSetDropTarget={onSetDropTarget}
-            onMoveEvent={onMoveEvent}
-          />
-        ))}
+      <div className="overflow-x-auto pb-2" dir="rtl">
+        <div className="min-w-[740px] overflow-hidden rounded-[1.5rem] border border-stone-200 bg-white/85">
+          <div className="grid grid-cols-[88px_repeat(7,minmax(88px,1fr))] border-b border-stone-200 bg-stone-50/90">
+            <div className="border-s border-stone-200 px-2 py-3 text-center text-xs font-semibold uppercase tracking-[0.16em] text-stone-400">
+              חלק ביום
+            </div>
+            {week.days.map((day) => (
+              <button
+                key={day.date}
+                type="button"
+                onClick={() => onSelectDay(day.date)}
+                className={`border-s border-stone-200 px-2 py-3 text-center transition ${
+                  day.inTripRange
+                    ? selectedDay === day.date
+                      ? "bg-stone-950 text-white"
+                      : "bg-white text-stone-900 hover:bg-stone-100"
+                    : "bg-stone-100/80 text-stone-400"
+                }`}
+              >
+                <p className="text-[11px] font-semibold">{day.dayName.replace("יום ", "")}</p>
+                <p className="mt-1 text-3xl font-semibold leading-none">{day.dayNumber}</p>
+              </button>
+            ))}
+          </div>
+
+          {segments.map((segment) => (
+            <MobileAgendaRow
+              key={segment}
+              week={week}
+              segment={segment}
+              events={events}
+              editable={editable}
+              isEditing={isEditing}
+              draggedEventId={draggedEventId}
+              dropTarget={dropTarget}
+              onOpenEvent={onOpenEvent}
+              onOpenCreateEvent={onOpenCreateEvent}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onSetDropTarget={onSetDropTarget}
+              onMoveEvent={onMoveEvent}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -1192,61 +1239,67 @@ function MobileAgendaRow({
   onMoveEvent: (eventId: string, date: string, segment: SegmentId) => Promise<void>;
 }) {
   return (
-    <div className="rounded-[1.5rem] border border-stone-200 bg-white/85 p-2">
-      <div className="mb-2 flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-stone-900">{segmentLabels[segment]}</p>
-          <p className="text-[11px] text-stone-500">{segmentTimes[segment]}</p>
-        </div>
+    <div className="grid grid-cols-[88px_repeat(7,minmax(88px,1fr))] border-b border-stone-200 last:border-b-0">
+      <div className="border-s border-stone-200 bg-white px-2 py-3">
+        <p className="text-sm font-semibold text-stone-900">{segmentLabels[segment]}</p>
+        <p className="mt-1 text-[11px] text-stone-500">{segmentTimes[segment]}</p>
       </div>
 
-      <div className="grid grid-cols-7 gap-1">
-        {week.days.map((day) => {
-          const cellEvents = events.filter(
-            (event) => event.date === day.date && event.segment === segment,
-          );
-          const isActiveDropTarget =
-            draggedEventId !== null &&
-            dropTarget?.date === day.date &&
-            dropTarget?.segment === segment;
+      {week.days.map((day) => {
+        const cellEvents = events.filter(
+          (event) => event.date === day.date && event.segment === segment,
+        );
+        const isActiveDropTarget =
+          draggedEventId !== null &&
+          dropTarget?.date === day.date &&
+          dropTarget?.segment === segment;
 
-          return (
-            <div
-              key={`${day.date}-${segment}`}
-              onDragOver={(event) => {
-                if (editable && isEditing && day.inTripRange) {
-                  event.preventDefault();
-                  onSetDropTarget({ date: day.date, segment });
-                }
-              }}
-              onDragEnter={(event) => {
-                if (editable && isEditing && day.inTripRange) {
-                  event.preventDefault();
-                  onSetDropTarget({ date: day.date, segment });
-                }
-              }}
-              onDragLeave={(event) => {
-                if (editable && isEditing && isActiveDropTarget && !event.currentTarget.contains(event.relatedTarget as Node | null)) {
-                  onSetDropTarget(null);
-                }
-              }}
-              onDrop={(event) => {
+        return (
+          <div
+            key={`${day.date}-${segment}`}
+            onDragOver={(event) => {
+              if (editable && isEditing && day.inTripRange) {
                 event.preventDefault();
-                if (editable && isEditing && day.inTripRange && draggedEventId) {
-                  void onMoveEvent(draggedEventId, day.date, segment);
-                  onDragEnd();
-                }
-              }}
-              className={`min-h-28 rounded-[1.1rem] border p-1 transition ${
+                onSetDropTarget({ date: day.date, segment });
+              }
+            }}
+            onDragEnter={(event) => {
+              if (editable && isEditing && day.inTripRange) {
+                event.preventDefault();
+                onSetDropTarget({ date: day.date, segment });
+              }
+            }}
+            onDragLeave={(event) => {
+              if (editable && isEditing && isActiveDropTarget && !event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                onSetDropTarget(null);
+              }
+            }}
+            onDrop={(event) => {
+              event.preventDefault();
+              if (editable && isEditing && day.inTripRange && draggedEventId) {
+                void onMoveEvent(draggedEventId, day.date, segment);
+                onDragEnd();
+              }
+            }}
+            className={`border-s border-stone-200 p-2 transition ${
+              day.inTripRange
+                ? isActiveDropTarget
+                  ? "bg-teal-50"
+                  : "bg-stone-50/55"
+                : "bg-stone-100/70"
+            }`}
+          >
+            <div
+              className={`min-h-28 rounded-[1.15rem] border p-2 ${
                 day.inTripRange
                   ? isActiveDropTarget
-                    ? "border-teal-400 bg-teal-50"
-                    : "border-stone-200 bg-stone-50/80"
-                  : "border-stone-200 bg-stone-100/70"
+                    ? "border-dashed border-teal-400 bg-teal-50 shadow-[inset_0_0_0_1px_rgba(20,184,166,0.15)]"
+                    : "border-stone-200 bg-white"
+                  : "border-stone-200 bg-stone-50/70"
               }`}
             >
               {cellEvents.length > 0 ? (
-                <div className="space-y-1">
+                <div className="space-y-2">
                   {cellEvents.map((event) => (
                     <button
                       key={event.id}
@@ -1255,46 +1308,42 @@ function MobileAgendaRow({
                       onDragStart={() => onDragStart(event.id)}
                       onDragEnd={onDragEnd}
                       onClick={() => onOpenEvent(event.id)}
-                      className="w-full rounded-xl border border-white/80 bg-white px-1.5 py-1 text-right shadow-sm"
+                      className="w-full rounded-[1rem] border border-stone-200 bg-white px-2 py-2 text-right shadow-sm transition hover:border-stone-300"
                     >
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="text-[11px] leading-none">{event.emoji ?? "•"}</span>
+                      <div className="flex items-center justify-between gap-2">
                         <AttendeeMarkers attendees={event.attendees} compact />
+                        <span className="text-lg leading-none">{event.emoji ?? "📌"}</span>
                       </div>
-                      <p
-                        className="mt-1 text-[11px] font-semibold leading-4 text-stone-900"
-                        style={{
-                          display: "-webkit-box",
-                          WebkitLineClamp: 3,
-                          WebkitBoxOrient: "vertical",
-                          overflow: "hidden",
-                        }}
-                      >
+                      <p className="mt-2 line-clamp-3 text-sm font-semibold leading-5 text-stone-950">
                         {event.title}
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-stone-500">
+                        {[event.location, getAttendeeSummary(event)].filter(Boolean).join(" · ")}
                       </p>
                     </button>
                   ))}
                 </div>
-              ) : (
+              ) : day.inTripRange && editable && isEditing ? (
                 <button
                   type="button"
-                  disabled={!day.inTripRange}
                   onClick={() => onOpenCreateEvent(day.date, segment)}
-                  className={`flex h-full min-h-24 w-full items-center justify-center rounded-[1rem] border border-dashed px-1 text-center text-[11px] ${
-                    day.inTripRange
-                      ? isActiveDropTarget
-                        ? "border-teal-500 bg-teal-50 text-teal-900"
-                        : "border-stone-300 text-stone-400"
-                      : "border-stone-300/60 text-stone-300"
+                  className={`flex min-h-full w-full items-center justify-center rounded-[0.95rem] border border-dashed px-2 text-center text-xs font-medium transition ${
+                    isActiveDropTarget
+                      ? "border-teal-400 bg-teal-100 text-teal-900"
+                      : "border-stone-300 bg-stone-50 text-stone-500 hover:border-stone-400 hover:bg-stone-100"
                   }`}
                 >
-                  {day.inTripRange ? (isActiveDropTarget ? "שחרור" : editable ? "+" : "פנוי") : "—"}
+                  {isActiveDropTarget ? "שחרור כאן" : "הוספת אירוע"}
                 </button>
+              ) : (
+                <div className="flex min-h-full items-center justify-center rounded-[0.95rem] border border-dashed border-stone-200 px-2 text-center text-sm text-stone-400">
+                  {day.inTripRange ? "פנוי" : "מחוץ לטווח"}
+                </div>
               )}
             </div>
-          );
-        })}
-      </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1804,13 +1853,13 @@ function EventDetailsModal({
   onEdit: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 px-4 py-8">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-stone-950/45 px-3 py-4 sm:px-4 sm:py-8">
       <button type="button" aria-label="close" onClick={onClose} className="absolute inset-0 cursor-default" />
       <div
-        className="relative z-10 w-full max-w-lg rounded-[2rem] border border-[var(--panel-border)] bg-white p-6 shadow-[0_30px_90px_rgba(28,25,23,0.18)]"
+        className="relative z-10 my-auto w-full max-w-lg rounded-[1.75rem] border border-[var(--panel-border)] bg-white shadow-[0_30px_90px_rgba(28,25,23,0.18)] sm:rounded-[2rem]"
         dir="rtl"
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 rounded-t-[1.75rem] border-b border-stone-200 bg-white px-4 py-4 sm:rounded-t-[2rem] sm:px-6">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">פרטי אירוע</p>
             <h2 className="mt-2 flex items-center gap-2 text-3xl font-semibold text-stone-950">
@@ -1838,18 +1887,20 @@ function EventDetailsModal({
           </div>
         </div>
 
-        <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <Detail label="תאריך" value={formatDateLabel(event.date)} />
-          <Detail label="חלק ביום" value={segmentLabels[event.segment]} />
-          <Detail label="מיקום" value={event.location} />
-          <Detail label="סטטוס" value={event.status === "approved" ? "מאושר" : event.status === "pending" ? "ממתין לאישור" : "נדחה"} />
-          <Detail label="משתתפים" value={event.attendees.map((personId) => getPerson(personId).name).join(", ")} />
-          <Detail label="הוצע על ידי" value={event.suggestedByName ?? "אדמין"} />
-        </div>
+        <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto px-4 py-5 sm:px-6">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Detail label="תאריך" value={formatDateLabel(event.date)} />
+            <Detail label="חלק ביום" value={segmentLabels[event.segment]} />
+            <Detail label="מיקום" value={event.location} />
+            <Detail label="סטטוס" value={event.status === "approved" ? "מאושר" : event.status === "pending" ? "ממתין לאישור" : "נדחה"} />
+            <Detail label="משתתפים" value={event.attendees.map((personId) => getPerson(personId).name).join(", ")} />
+            <Detail label="הוצע על ידי" value={event.suggestedByName ?? "אדמין"} />
+          </div>
 
-        {event.notes ? (
-          <div className="mt-5 rounded-2xl bg-stone-100 px-4 py-3 text-sm leading-7 text-stone-700">{event.notes}</div>
-        ) : null}
+          {event.notes ? (
+            <div className="mt-5 rounded-2xl bg-stone-100 px-4 py-3 text-sm leading-7 text-stone-700">{event.notes}</div>
+          ) : null}
+        </div>
       </div>
     </div>
   );
@@ -1889,13 +1940,13 @@ function EventFormModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-950/45 px-4 py-8">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-stone-950/45 px-3 py-4 sm:px-4 sm:py-8">
       <button type="button" aria-label="close" onClick={onClose} className="absolute inset-0 cursor-default" />
       <div
-        className="relative z-10 w-full max-w-2xl rounded-[2rem] border border-[var(--panel-border)] bg-white p-6 shadow-[0_30px_90px_rgba(28,25,23,0.18)]"
+        className="relative z-10 my-auto w-full max-w-2xl rounded-[1.75rem] border border-[var(--panel-border)] bg-white shadow-[0_30px_90px_rgba(28,25,23,0.18)] sm:rounded-[2rem]"
         dir="rtl"
       >
-        <div className="flex items-start justify-between gap-4">
+        <div className="sticky top-0 z-10 flex items-start justify-between gap-4 rounded-t-[1.75rem] border-b border-stone-200 bg-white px-4 py-4 sm:rounded-t-[2rem] sm:px-6">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
               {mode === "admin" ? (existingEvent ? "עריכת אירוע" : "יצירת אירוע") : "הצעת אירוע"}
@@ -1917,173 +1968,175 @@ function EventFormModal({
           </button>
         </div>
 
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          <Field label="כותרת">
-            <input
-              value={formState.title}
-              onChange={(event) => setFormState((current) => ({ ...current, title: event.target.value }))}
-              className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
-              placeholder="למשל ארוחת ערב משפחתית"
-            />
-          </Field>
-
-          <Field label="אימוג'י">
-            <div className="flex flex-wrap gap-2 rounded-2xl border border-stone-300 bg-stone-50 p-3">
-              {eventEmojiOptions.map((emoji) => {
-                const active = formState.emoji === emoji;
-                return (
-                  <button
-                    key={emoji}
-                    type="button"
-                    onClick={() => setFormState((current) => ({ ...current, emoji }))}
-                    className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-xl transition ${
-                      active
-                        ? "border-stone-950 bg-stone-950 text-white"
-                        : "border-stone-200 bg-white hover:border-stone-400"
-                    }`}
-                  >
-                    {emoji}
-                  </button>
-                );
-              })}
-            </div>
-          </Field>
-
-          <Field label="מיקום">
-            <input
-              value={formState.location}
-              onChange={(event) => setFormState((current) => ({ ...current, location: event.target.value }))}
-              className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
-              placeholder="למשל ירושלים"
-            />
-          </Field>
-
-          <Field label="תאריך">
-            <input
-              type="date"
-              value={formState.date}
-              onChange={(event) => setFormState((current) => ({ ...current, date: event.target.value }))}
-              className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
-            />
-          </Field>
-
-          <Field label="חלק ביום">
-            <select
-              value={formState.segment}
-              onChange={(event) =>
-                setFormState((current) => ({ ...current, segment: event.target.value as SegmentId }))
-              }
-              className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
-            >
-              {segments.map((segment) => (
-                <option key={segment} value={segment}>
-                  {segmentLabels[segment]}
-                </option>
-              ))}
-            </select>
-          </Field>
-        </div>
-
-        {mode === "suggest" ? (
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
-            <Field label="מי מציע/ה?">
+        <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto px-4 py-5 sm:px-6">
+          <div className="grid gap-4 md:grid-cols-2">
+            <Field label="כותרת">
               <input
-                value={formState.suggestedByName}
-                onChange={(event) =>
-                  setFormState((current) => ({ ...current, suggestedByName: event.target.value }))
-                }
+                value={formState.title}
+                onChange={(event) => setFormState((current) => ({ ...current, title: event.target.value }))}
                 className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
-                placeholder="למשל גלעד"
+                placeholder="למשל ארוחת ערב משפחתית"
               />
             </Field>
 
-            <Field label="האירוע שייך בעיקר ל">
+            <Field label="אימוג'י">
+              <div className="flex flex-wrap gap-2 rounded-2xl border border-stone-300 bg-stone-50 p-3">
+                {eventEmojiOptions.map((emoji) => {
+                  const active = formState.emoji === emoji;
+                  return (
+                    <button
+                      key={emoji}
+                      type="button"
+                      onClick={() => setFormState((current) => ({ ...current, emoji }))}
+                      className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-xl transition ${
+                        active
+                          ? "border-stone-950 bg-stone-950 text-white"
+                          : "border-stone-200 bg-white hover:border-stone-400"
+                      }`}
+                    >
+                      {emoji}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+
+            <Field label="מיקום">
+              <input
+                value={formState.location}
+                onChange={(event) => setFormState((current) => ({ ...current, location: event.target.value }))}
+                className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                placeholder="למשל ירושלים"
+              />
+            </Field>
+
+            <Field label="תאריך">
+              <input
+                type="date"
+                value={formState.date}
+                onChange={(event) => setFormState((current) => ({ ...current, date: event.target.value }))}
+                className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+              />
+            </Field>
+
+            <Field label="חלק ביום">
               <select
-                value={formState.suggestedByPerson}
+                value={formState.segment}
                 onChange={(event) =>
-                  setFormState((current) => ({
-                    ...current,
-                    suggestedByPerson: event.target.value as PersonId,
-                  }))
+                  setFormState((current) => ({ ...current, segment: event.target.value as SegmentId }))
                 }
                 className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
               >
-                {people.map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {person.name}
+                {segments.map((segment) => (
+                  <option key={segment} value={segment}>
+                    {segmentLabels[segment]}
                   </option>
                 ))}
               </select>
             </Field>
           </div>
-        ) : null}
 
-        <div className="mt-4">
-          <Field label="משתתפים">
-            <div className="flex flex-wrap gap-2">
-              {people.map((person) => {
-                const active = formState.attendees.includes(person.id);
-                return (
-                  <button
-                    key={person.id}
-                    type="button"
-                    onClick={() => toggleAttendee(person.id)}
-                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                      active
-                        ? person.chipClass
-                        : "border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
-                    }`}
-                  >
-                    {person.name}
-                  </button>
-                );
-              })}
+          {mode === "suggest" ? (
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <Field label="מי מציע/ה?">
+                <input
+                  value={formState.suggestedByName}
+                  onChange={(event) =>
+                    setFormState((current) => ({ ...current, suggestedByName: event.target.value }))
+                  }
+                  className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                  placeholder="למשל גלעד"
+                />
+              </Field>
+
+              <Field label="האירוע שייך בעיקר ל">
+                <select
+                  value={formState.suggestedByPerson}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      suggestedByPerson: event.target.value as PersonId,
+                    }))
+                  }
+                  className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                >
+                  {people.map((person) => (
+                    <option key={person.id} value={person.id}>
+                      {person.name}
+                    </option>
+                  ))}
+                </select>
+              </Field>
             </div>
-          </Field>
-        </div>
+          ) : null}
 
-        <div className="mt-4">
-          <Field label="הערות">
-            <textarea
-              value={formState.notes}
-              onChange={(event) => setFormState((current) => ({ ...current, notes: event.target.value }))}
-              rows={4}
-              className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
-              placeholder="פרטים נוספים, כתובת מלאה, תזכורת, מה להביא..."
-            />
-          </Field>
-        </div>
+          <div className="mt-4">
+            <Field label="משתתפים">
+              <div className="flex flex-wrap gap-2">
+                {people.map((person) => {
+                  const active = formState.attendees.includes(person.id);
+                  return (
+                    <button
+                      key={person.id}
+                      type="button"
+                      onClick={() => toggleAttendee(person.id)}
+                      className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                        active
+                          ? person.chipClass
+                          : "border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                      }`}
+                    >
+                      {person.name}
+                    </button>
+                  );
+                })}
+              </div>
+            </Field>
+          </div>
 
-        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            {onDelete ? (
+          <div className="mt-4">
+            <Field label="הערות">
+              <textarea
+                value={formState.notes}
+                onChange={(event) => setFormState((current) => ({ ...current, notes: event.target.value }))}
+                rows={4}
+                className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                placeholder="פרטים נוספים, כתובת מלאה, תזכורת, מה להביא..."
+              />
+            </Field>
+          </div>
+
+          <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              {onDelete ? (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() => void onDelete()}
+                  className="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-900 transition hover:bg-rose-100 disabled:opacity-60"
+                >
+                  מחיקת אירוע
+                </button>
+              ) : null}
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-full border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-100"
+              >
+                ביטול
+              </button>
               <button
                 type="button"
                 disabled={saving}
-                onClick={() => void onDelete()}
-                className="rounded-full border border-rose-200 bg-rose-50 px-4 py-2 text-sm font-semibold text-rose-900 transition hover:bg-rose-100 disabled:opacity-60"
+                onClick={() => void onSave(formState, existingEvent)}
+                className="rounded-full bg-stone-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:opacity-60"
               >
-                מחיקת אירוע
+                {mode === "admin" ? "שמירת אירוע" : "שליחת הצעה"}
               </button>
-            ) : null}
-          </div>
-
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-full border border-stone-300 px-4 py-2 text-sm font-semibold text-stone-700 transition hover:bg-stone-100"
-            >
-              ביטול
-            </button>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={() => void onSave(formState, existingEvent)}
-              className="rounded-full bg-stone-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:opacity-60"
-            >
-              {mode === "admin" ? "שמירת אירוע" : "שליחת הצעה"}
-            </button>
+            </div>
           </div>
         </div>
       </div>
