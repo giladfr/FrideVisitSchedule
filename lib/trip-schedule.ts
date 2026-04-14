@@ -1,6 +1,12 @@
 export type PersonId = "gilad" | "yaara" | "kids";
 
 export type SegmentId = "morning" | "noon" | "evening" | "night";
+export type RecurrencePattern = "none" | "daily" | "weekly";
+export type RecurrenceConfig = {
+  pattern: RecurrencePattern;
+  until?: string;
+  weekdays?: number[];
+};
 
 export type Person = {
   id: PersonId;
@@ -24,6 +30,8 @@ export type TripEvent = {
   createdByRole: "admin" | "guest";
   suggestedByName?: string;
   suggestedByPerson?: PersonId;
+  seriesId?: string;
+  recurrenceLabel?: string;
   createdAt?: string;
   updatedAt?: string;
 };

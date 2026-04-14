@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -15,6 +15,25 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "לוח ביקור בישראל",
   description: "לוח זמנים משפחתי לביקור בישראל.",
+  manifest: "/manifest.webmanifest",
+  themeColor: "#f7f1e6",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "לוח ביקור",
+  },
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#f7f1e6",
 };
 
 export default function RootLayout({

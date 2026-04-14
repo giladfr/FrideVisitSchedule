@@ -7,12 +7,14 @@ import {
   buildCalendarWeeks,
   eventEmojiOptions,
   getPerson,
+  hebrewWeekdays,
   people,
   segmentLabels,
   segmentTimes,
   tripWindow,
   type CalendarDay,
   type PersonId,
+  type RecurrencePattern,
   type SegmentId,
   type TripEvent,
 } from "@/lib/trip-schedule";
@@ -45,6 +47,9 @@ type EventDraft = {
   attendees: PersonId[];
   suggestedByName: string;
   suggestedByPerson: PersonId;
+  recurrencePattern: RecurrencePattern;
+  recurrenceUntil: string;
+  recurrenceWeekdays: number[];
 };
 type SnapshotResponse = {
   events: TripEvent[];
@@ -93,6 +98,9 @@ function createDraft(
       mode === "suggest"
         ? event?.suggestedByPerson ?? options.identity.personId
         : event?.suggestedByPerson ?? options.identity.personId,
+    recurrencePattern: "none",
+    recurrenceUntil: tripWindow.end,
+    recurrenceWeekdays: [new Date(`${event?.date ?? options.date}T12:00:00`).getDay()],
   };
 }
 
@@ -128,6 +136,30 @@ function sortEvents(events: TripEvent[]) {
 
     return (left.createdAt ?? "").localeCompare(right.createdAt ?? "");
   });
+}
+
+function buildConflictMap(events: TripEvent[]) {
+  const conflicts = new Set<string>();
+  const activeEvents = events.filter((event) => event.status !== "rejected");
+
+  for (let index = 0; index < activeEvents.length; index += 1) {
+    const left = activeEvents[index];
+
+    for (let nextIndex = index + 1; nextIndex < activeEvents.length; nextIndex += 1) {
+      const right = activeEvents[nextIndex];
+
+      if (left.date !== right.date || left.segment !== right.segment) {
+        continue;
+      }
+
+      if (left.attendees.some((personId) => right.attendees.includes(personId))) {
+        conflicts.add(left.id);
+        conflicts.add(right.id);
+      }
+    }
+  }
+
+  return conflicts;
 }
 
 function canSeeEvent(
@@ -244,6 +276,8 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
     [editable, events, selectedFilter],
   );
 
+  const conflictIds = useMemo(() => buildConflictMap(events), [events]);
+
   const pendingSuggestions = useMemo(
     () => sortEvents(events.filter((event) => event.status === "pending")),
     [events],
@@ -252,6 +286,11 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
   const rejectedSuggestions = useMemo(
     () => sortEvents(events.filter((event) => event.status === "rejected")),
     [events],
+  );
+
+  const conflictingEvents = useMemo(
+    () => sortEvents(events.filter((event) => conflictIds.has(event.id))),
+    [conflictIds, events],
   );
 
   const currentMonthLabel = useMemo(() => {
@@ -340,6 +379,16 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       attendees: draft.attendees,
       suggestedByName: editable ? existingEvent?.suggestedByName : draft.suggestedByName,
       suggestedByPerson: editable ? existingEvent?.suggestedByPerson : draft.suggestedByPerson,
+      recurrence:
+        !existingEvent && draft.recurrencePattern !== "none"
+          ? {
+              pattern: draft.recurrencePattern,
+              until: draft.recurrenceUntil,
+              weekdays: draft.recurrenceWeekdays,
+            }
+          : {
+              pattern: "none",
+            },
     };
 
     try {
@@ -351,7 +400,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
         body: JSON.stringify(payload),
       });
 
-      await readJson<{ event?: TripEvent }>(response);
+      const result = await readJson<{ event?: TripEvent; createdCount?: number }>(response);
 
       if (!editable) {
         const nextIdentity = {
@@ -364,7 +413,16 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       }
 
       await refreshSchedule(editable ? undefined : draft.suggestedByName);
-      setNotice(editable ? "האירוע נשמר." : "ההצעה נשלחה לאישור האדמין.");
+      const createdCount = result.createdCount ?? 1;
+      setNotice(
+        createdCount > 1
+          ? editable
+            ? `נוצרה סדרה של ${createdCount} אירועים.`
+            : `נשלחה סדרה של ${createdCount} הצעות לאישור האדמין.`
+          : editable
+            ? "האירוע נשמר."
+            : "ההצעה נשלחה לאישור האדמין.",
+      );
       setModalState(null);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "שמירת האירוע נכשלה.");
@@ -727,6 +785,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                   key={week.id}
                   week={week}
                   events={filteredEvents}
+                  conflictIds={conflictIds}
                   editable={editable}
                   isEditing={isEditing}
                   draggedEventId={draggedEventId}
@@ -772,6 +831,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                     events={filteredEvents.filter(
                       (event) => event.date === selectedDayData.date && event.segment === segment,
                     )}
+                    conflictIds={conflictIds}
                     editable={editable}
                     isEditing={isEditing}
                     draggedEventId={draggedEventId}
@@ -798,6 +858,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                 week={selectedWeek}
                 selectedWeekIndex={weeks.findIndex((week) => week.id === selectedWeek.id)}
                 events={filteredEvents}
+                conflictIds={conflictIds}
                 editable={editable}
                 isEditing={isEditing}
                 draggedEventId={draggedEventId}
@@ -852,6 +913,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                       <EventCard
                         key={event.id}
                         event={event}
+                        hasConflict={conflictIds.has(event.id)}
                         compact={false}
                         draggable={editable && isEditing && event.status !== "rejected"}
                         onDragStart={() => setDraggedEventId(event.id)}
@@ -876,6 +938,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                 <MiniStat label="ממתינים" value={`${pendingSuggestions.length}`} />
                 <MiniStat label="נדחו" value={`${rejectedSuggestions.length}`} />
                 <MiniStat label="מאושרים" value={`${events.filter((event) => event.status === "approved").length}`} />
+                <MiniStat label="קונפליקטים" value={`${conflictingEvents.length}`} />
               </div>
             </div>
 
@@ -927,6 +990,37 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                 ) : (
                   <div className="rounded-[1.25rem] border border-dashed border-stone-300 bg-white/70 px-4 py-6 text-sm text-stone-500">
                     אין כרגע הצעות שממתינות לאישור.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-[1.75rem] border border-[var(--panel-border)] bg-[var(--panel)] p-4 shadow-[0_16px_50px_rgba(28,25,23,0.06)]">
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
+                התנגשויות בלוח
+              </p>
+              <div className="mt-4 space-y-3">
+                {conflictingEvents.length > 0 ? (
+                  conflictingEvents.map((event) => (
+                    <button
+                      key={`conflict-${event.id}`}
+                      type="button"
+                      onClick={() => setModalState({ type: "details", eventId: event.id })}
+                      className="w-full rounded-[1.25rem] border border-rose-200 bg-rose-50 p-3 text-right transition hover:bg-rose-100"
+                    >
+                      <p className="font-semibold text-rose-950">
+                        {event.emoji ? `${event.emoji} ` : ""}
+                        {event.title}
+                      </p>
+                      <p className="mt-1 text-sm text-rose-800">
+                        {formatDateLabel(event.date)} · {segmentLabels[event.segment]}
+                      </p>
+                      <p className="mt-1 text-sm text-rose-700">{getAttendeeSummary(event)}</p>
+                    </button>
+                  ))
+                ) : (
+                  <div className="rounded-[1.25rem] border border-dashed border-stone-300 bg-white/70 px-4 py-6 text-sm text-stone-500">
+                    אין כרגע התנגשויות בין אירועים.
                   </div>
                 )}
               </div>
@@ -988,6 +1082,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
 function WeekSection({
   week,
   events,
+  conflictIds,
   editable,
   isEditing,
   draggedEventId,
@@ -1003,6 +1098,7 @@ function WeekSection({
 }: {
   week: (typeof weeks)[number];
   events: TripEvent[];
+  conflictIds: Set<string>;
   editable: boolean;
   isEditing: boolean;
   draggedEventId: string | null;
@@ -1053,6 +1149,7 @@ function WeekSection({
                   day={day}
                   segment={segment}
                   events={events.filter((event) => event.date === day.date && event.segment === segment)}
+                  conflictIds={conflictIds}
                   editable={editable}
                   isEditing={isEditing}
                   draggedEventId={draggedEventId}
@@ -1103,6 +1200,7 @@ function WeekSection({
                   day={day}
                   segment={segment}
                   events={events.filter((event) => event.date === day.date && event.segment === segment)}
+                  conflictIds={conflictIds}
                   editable={editable}
                   isEditing={isEditing}
                   draggedEventId={draggedEventId}
@@ -1128,6 +1226,7 @@ function MobileWeekAgenda({
   week,
   selectedWeekIndex,
   events,
+  conflictIds,
   editable,
   isEditing,
   draggedEventId,
@@ -1146,6 +1245,7 @@ function MobileWeekAgenda({
   week: CalendarWeek;
   selectedWeekIndex: number;
   events: TripEvent[];
+  conflictIds: Set<string>;
   editable: boolean;
   isEditing: boolean;
   draggedEventId: string | null;
@@ -1227,6 +1327,7 @@ function MobileWeekAgenda({
               week={week}
               segment={segment}
               events={events}
+              conflictIds={conflictIds}
               editable={editable}
               isEditing={isEditing}
               draggedEventId={draggedEventId}
@@ -1249,6 +1350,7 @@ function MobileAgendaRow({
   week,
   segment,
   events,
+  conflictIds,
   editable,
   isEditing,
   draggedEventId,
@@ -1263,6 +1365,7 @@ function MobileAgendaRow({
   week: (typeof weeks)[number];
   segment: SegmentId;
   events: TripEvent[];
+  conflictIds: Set<string>;
   editable: boolean;
   isEditing: boolean;
   draggedEventId: string | null;
@@ -1344,7 +1447,11 @@ function MobileAgendaRow({
                       onDragStart={() => onDragStart(event.id)}
                       onDragEnd={onDragEnd}
                       onClick={() => onOpenEvent(event.id)}
-                      className="w-full rounded-[1rem] border border-stone-200 bg-white px-2 py-2 text-right shadow-sm transition hover:border-stone-300"
+                      className={`w-full rounded-[1rem] bg-white px-2 py-2 text-right shadow-sm transition hover:border-stone-300 ${
+                        conflictIds.has(event.id)
+                          ? "border border-rose-300 bg-rose-50/70"
+                          : "border border-stone-200"
+                      }`}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <AttendeeMarkers attendees={event.attendees} compact />
@@ -1356,6 +1463,9 @@ function MobileAgendaRow({
                       <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-stone-500">
                         {[event.location, getAttendeeSummary(event)].filter(Boolean).join(" · ")}
                       </p>
+                      {conflictIds.has(event.id) ? (
+                        <p className="mt-1 text-[10px] font-semibold text-rose-700">התנגשות בלו״ז</p>
+                      ) : null}
                     </button>
                   ))}
                 </div>
@@ -1417,6 +1527,7 @@ function ScheduleDropZone({
   day,
   segment,
   events,
+  conflictIds,
   editable,
   isEditing,
   draggedEventId,
@@ -1431,6 +1542,7 @@ function ScheduleDropZone({
   day: CalendarDay;
   segment: SegmentId;
   events: TripEvent[];
+  conflictIds: Set<string>;
   editable: boolean;
   isEditing: boolean;
   draggedEventId: string | null;
@@ -1500,6 +1612,7 @@ function ScheduleDropZone({
             <EventCard
               key={event.id}
               event={event}
+              hasConflict={conflictIds.has(event.id)}
               compact
               draggable={editable && isEditing && event.status !== "rejected"}
               onDragStart={() => onDragStart(event.id)}
@@ -1538,6 +1651,7 @@ function SegmentPanel({
   day,
   segment,
   events,
+  conflictIds,
   editable,
   isEditing,
   draggedEventId,
@@ -1552,6 +1666,7 @@ function SegmentPanel({
   day: CalendarDay;
   segment: SegmentId;
   events: TripEvent[];
+  conflictIds: Set<string>;
   editable: boolean;
   isEditing: boolean;
   draggedEventId: string | null;
@@ -1622,6 +1737,7 @@ function SegmentPanel({
             <EventCard
               key={event.id}
               event={event}
+              hasConflict={conflictIds.has(event.id)}
               compact={false}
               draggable={editable && isEditing && event.status !== "rejected"}
               onDragStart={() => onDragStart(event.id)}
@@ -1658,6 +1774,7 @@ function SegmentPanel({
 
 function EventCard({
   event,
+  hasConflict,
   compact,
   draggable,
   onDragStart,
@@ -1665,6 +1782,7 @@ function EventCard({
   onClick,
 }: {
   event: TripEvent;
+  hasConflict: boolean;
   compact: boolean;
   draggable: boolean;
   onDragStart: () => void;
@@ -1683,7 +1801,9 @@ function EventCard({
       className={`rounded-2xl border bg-white/95 text-right shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
         compact ? "p-2.5" : "p-3"
       } ${
-        event.status === "pending"
+        hasConflict
+          ? "border-rose-300 bg-rose-50/70"
+          : event.status === "pending"
           ? "border-amber-300 border-dashed"
           : event.status === "rejected"
             ? "border-rose-200 bg-rose-50"
@@ -1708,6 +1828,11 @@ function EventCard({
                 {event.status === "pending" ? "ממתין לאישור" : "נדחה"}
               </span>
             ) : null}
+            {hasConflict ? (
+              <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-900">
+                התנגשות
+              </span>
+            ) : null}
           </div>
           <p
             className="mt-1 text-sm font-semibold leading-5 text-stone-900"
@@ -1723,6 +1848,9 @@ function EventCard({
           <p className="mt-0.5 text-[11px] text-stone-600">
             {event.location} · {segmentLabels[event.segment]}
           </p>
+          {event.recurrenceLabel ? (
+            <p className="mt-0.5 text-[11px] text-stone-500">{event.recurrenceLabel}</p>
+          ) : null}
           {event.suggestedByName ? (
             <p className="mt-0.5 text-[11px] text-stone-500">הציע/ה: {event.suggestedByName}</p>
           ) : null}
@@ -1745,9 +1873,17 @@ function EventCard({
                     {event.status === "pending" ? "ממתין לאישור" : "נדחה"}
                   </span>
                 ) : null}
+                {hasConflict ? (
+                  <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-900">
+                    התנגשות
+                  </span>
+                ) : null}
               </div>
               <p className="mt-1 text-sm text-stone-600">{event.location}</p>
               <p className="mt-1 text-xs font-medium text-stone-500">{segmentLabels[event.segment]}</p>
+              {event.recurrenceLabel ? (
+                <p className="mt-1 text-xs font-medium text-stone-500">{event.recurrenceLabel}</p>
+              ) : null}
               {event.suggestedByName ? (
                 <p className="mt-1 text-xs text-stone-500">הציע/ה: {event.suggestedByName}</p>
               ) : null}
@@ -1953,6 +2089,7 @@ function EventDetailsModal({
             <Detail label="סטטוס" value={event.status === "approved" ? "מאושר" : event.status === "pending" ? "ממתין לאישור" : "נדחה"} />
             <Detail label="משתתפים" value={event.attendees.map((personId) => getPerson(personId).name).join(", ")} />
             <Detail label="הוצע על ידי" value={event.suggestedByName ?? "אדמין"} />
+            {event.recurrenceLabel ? <Detail label="חזרתיות" value={event.recurrenceLabel} /> : null}
           </div>
 
           {event.notes ? (
@@ -2094,6 +2231,88 @@ function EventFormModal({
             </Field>
           </div>
 
+          {!existingEvent ? (
+            <div className="mt-4 rounded-[1.5rem] border border-stone-200 bg-stone-50 p-4">
+              <p className="text-sm font-semibold text-stone-800">חזרתיות</p>
+              <div className="mt-3 grid gap-4 md:grid-cols-2">
+                <Field label="דפוס חזרה">
+                  <select
+                    value={formState.recurrencePattern}
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        recurrencePattern: event.target.value as RecurrencePattern,
+                      }))
+                    }
+                    className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                  >
+                    <option value="none">ללא חזרה</option>
+                    <option value="daily">כל יום</option>
+                    <option value="weekly">חוזר שבועית</option>
+                  </select>
+                </Field>
+
+                <Field label="עד תאריך">
+                  <input
+                    type="date"
+                    min={formState.date}
+                    max={tripWindow.end}
+                    value={formState.recurrenceUntil}
+                    onChange={(event) =>
+                      setFormState((current) => ({
+                        ...current,
+                        recurrenceUntil: event.target.value,
+                      }))
+                    }
+                    className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                  />
+                </Field>
+              </div>
+
+              {formState.recurrencePattern === "weekly" ? (
+                <div className="mt-4">
+                  <Field label="באילו ימים בשבוע">
+                    <div className="flex flex-wrap gap-2">
+                      {hebrewWeekdays.map((weekday, index) => {
+                        const active = formState.recurrenceWeekdays.includes(index);
+                        return (
+                          <button
+                            key={weekday}
+                            type="button"
+                            onClick={() =>
+                              setFormState((current) => {
+                                const exists = current.recurrenceWeekdays.includes(index);
+                                const nextWeekdays = exists
+                                  ? current.recurrenceWeekdays.filter((value) => value !== index)
+                                  : [...current.recurrenceWeekdays, index].sort((a, b) => a - b);
+
+                                return {
+                                  ...current,
+                                  recurrenceWeekdays: nextWeekdays.length > 0 ? nextWeekdays : current.recurrenceWeekdays,
+                                };
+                              })
+                            }
+                            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                              active
+                                ? "border-stone-950 bg-stone-950 text-white"
+                                : "border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
+                            }`}
+                          >
+                            {weekday}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </Field>
+                </div>
+              ) : null}
+            </div>
+          ) : existingEvent.recurrenceLabel ? (
+            <div className="mt-4 rounded-[1.5rem] border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
+              האירוע הזה שייך לסדרה: {existingEvent.recurrenceLabel}. כרגע עריכה תשפיע רק על המופע הזה.
+            </div>
+          ) : null}
+
           {mode === "suggest" ? (
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <Field label="מי מציע/ה?">
@@ -2138,15 +2357,18 @@ function EventFormModal({
                       key={person.id}
                       type="button"
                       onClick={() => toggleAttendee(person.id)}
-                      className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                        active
-                          ? person.chipClass
+                    className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
+                      active
+                          ? "border-stone-950 bg-stone-950 text-white"
                           : "border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
-                      }`}
-                    >
-                      {person.name}
-                    </button>
-                  );
+                    }`}
+                  >
+                    <span className="ml-1" aria-hidden="true">
+                      {person.personEmoji}
+                    </span>
+                    {person.name}
+                  </button>
+                );
                 })}
               </div>
             </Field>
