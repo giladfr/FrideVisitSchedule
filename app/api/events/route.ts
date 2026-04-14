@@ -12,7 +12,6 @@ import {
   people,
   segmentLabels,
   type PersonId,
-  type RecurrenceConfig,
   type SegmentId,
 } from "@/lib/trip-schedule";
 
@@ -54,28 +53,6 @@ function parseEventInput(payload: unknown) {
     location: raw.location.trim(),
     notes: typeof raw.notes === "string" ? raw.notes.trim() : undefined,
   };
-
-  if (raw.recurrence && typeof raw.recurrence === "object") {
-    const recurrenceRaw = raw.recurrence as Record<string, unknown>;
-    const pattern = recurrenceRaw.pattern;
-
-    if (pattern === "none" || pattern === "daily" || pattern === "weekly") {
-      const recurrence: RecurrenceConfig = { pattern };
-
-      if (typeof recurrenceRaw.until === "string" && recurrenceRaw.until) {
-        recurrence.until = recurrenceRaw.until;
-      }
-
-      if (Array.isArray(recurrenceRaw.weekdays)) {
-        recurrence.weekdays = recurrenceRaw.weekdays.filter(
-          (value): value is number =>
-            typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= 6,
-        );
-      }
-
-      input.recurrence = recurrence;
-    }
-  }
 
   if (!input.title || !input.location) {
     throw new Error("Title and location are required.");
@@ -141,8 +118,8 @@ export async function POST(request: Request) {
     const input = parseEventInput(payload);
 
     if (isAdmin) {
-      const events = await createAdminEvent(input);
-      return NextResponse.json({ event: events[0], events, createdCount: events.length });
+      const event = await createAdminEvent(input);
+      return NextResponse.json({ event });
     }
 
     if (!input.suggestedByName || !input.suggestedByPerson) {
@@ -152,8 +129,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const events = await createSuggestedEvent(input);
-    return NextResponse.json({ event: events[0], events, createdCount: events.length });
+    const event = await createSuggestedEvent(input);
+    return NextResponse.json({ event });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Failed to create event." },

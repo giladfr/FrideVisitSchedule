@@ -1,8 +1,6 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
   demoEvents,
-  tripWindow,
-  type RecurrenceConfig,
   type PersonId,
   type SegmentId,
   type TripEvent,
@@ -41,7 +39,6 @@ export type EventMutationInput = {
   notes?: string;
   suggestedByName?: string;
   suggestedByPerson?: PersonId;
-  recurrence?: RecurrenceConfig;
 };
 
 function mapRow(row: EventRow): TripEvent {
@@ -57,8 +54,7 @@ function mapRow(row: EventRow): TripEvent {
     createdByRole: row.created_by_role,
     suggestedByName: row.suggested_by_name ?? undefined,
     suggestedByPerson: row.suggested_by_person ?? undefined,
-    recurrenceLabel: extractStoredMetadata(row.notes).recurrenceLabel,
-    notes: extractStoredMetadata(row.notes).notes ?? undefined,
+    notes: row.notes ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -69,7 +65,6 @@ function mapInput(
   options: {
     status: TripEvent["status"];
     createdByRole: TripEvent["createdByRole"];
-    recurrenceLabel?: string | null;
   },
 ) {
   return {
@@ -79,107 +74,12 @@ function mapInput(
     segment: input.segment,
     attendees: input.attendees,
     location: input.location,
-    notes: buildStoredNotes(input.notes, options.recurrenceLabel),
+    notes: input.notes?.trim() ? input.notes.trim() : null,
     status: options.status,
     created_by_role: options.createdByRole,
     suggested_by_name: input.suggestedByName?.trim() || null,
     suggested_by_person: input.suggestedByPerson ?? null,
   };
-}
-
-function extractStoredMetadata(notes: string | null) {
-  if (!notes) {
-    return {
-      notes: null,
-      recurrenceLabel: undefined as string | undefined,
-    };
-  }
-
-  const lines = notes.split("\n");
-  const firstLine = lines[0]?.trim();
-  const match = firstLine?.match(/^\[\[fride:recurrence=(.+)\]\]$/);
-
-  if (!match) {
-    return {
-      notes,
-      recurrenceLabel: undefined,
-    };
-  }
-
-  const remainingNotes = lines.slice(1).join("\n").trim();
-
-  return {
-    notes: remainingNotes || null,
-    recurrenceLabel: match[1],
-  };
-}
-
-function buildStoredNotes(notes: string | undefined, recurrenceLabel?: string | null) {
-  const cleanedNotes = notes?.trim() || "";
-  const cleanedLabel = recurrenceLabel?.trim() || "";
-
-  if (!cleanedLabel) {
-    return cleanedNotes || null;
-  }
-
-  return `[[fride:recurrence=${cleanedLabel}]]${cleanedNotes ? `\n${cleanedNotes}` : ""}`;
-}
-
-function addDays(date: string, count: number) {
-  const next = new Date(`${date}T12:00:00`);
-  next.setDate(next.getDate() + count);
-  return next.toISOString().slice(0, 10);
-}
-
-function getIsraeliWeekday(date: string) {
-  const jsDay = new Date(`${date}T12:00:00`).getDay();
-  return jsDay;
-}
-
-function buildRecurrenceLabel(config?: RecurrenceConfig) {
-  if (!config || config.pattern === "none") {
-    return null;
-  }
-
-  if (config.pattern === "daily") {
-    return "חוזר כל יום";
-  }
-
-  return "חוזר כל שבוע";
-}
-
-function expandRecurringInputs(input: EventMutationInput) {
-  const recurrence = input.recurrence;
-
-  if (!recurrence || recurrence.pattern === "none" || !recurrence.until || recurrence.until <= input.date) {
-    return [{ ...input, recurrence: undefined }];
-  }
-
-  const until = recurrence.until > tripWindow.end ? tripWindow.end : recurrence.until;
-  const dates: string[] = [];
-
-  if (recurrence.pattern === "daily") {
-    for (let cursor = input.date; cursor <= until; cursor = addDays(cursor, 1)) {
-      dates.push(cursor);
-    }
-  } else {
-    const weekdaySet = new Set(
-      (recurrence.weekdays?.length ? recurrence.weekdays : [getIsraeliWeekday(input.date)])
-        .filter((value) => value >= 0 && value <= 6),
-    );
-
-    for (let cursor = input.date; cursor <= until; cursor = addDays(cursor, 1)) {
-      if (weekdaySet.has(getIsraeliWeekday(cursor))) {
-        dates.push(cursor);
-      }
-    }
-  }
-
-  return dates.map((date) => ({
-    ...input,
-    date,
-    recurrence: undefined,
-  }));
 }
 
 function isSetupError(error: { message?: string } | null) {
@@ -241,67 +141,38 @@ export async function createSuggestedEvent(input: EventMutationInput) {
   const supabase = createSupabaseServerClient({
     viewerName: input.suggestedByName,
   });
-  const expandedInputs = expandRecurringInputs(input);
-  const recurrenceLabel = buildRecurrenceLabel(input.recurrence);
 
   const { data, error } = await supabase
     .from("visit_events")
-    .insert(
-      expandedInputs.map((entry) =>
-        mapInput(entry, {
-          status: "pending",
-          createdByRole: "guest",
-          recurrenceLabel,
-        }),
-      ),
-    )
+    .insert(mapInput(input, { status: "pending", createdByRole: "guest" }))
     .select("*")
-    .order("event_date", { ascending: true });
+    .single();
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return (data as EventRow[]).map(mapRow);
+  return mapRow(data as EventRow);
 }
 
 export async function createAdminEvent(input: EventMutationInput) {
   const supabase = createSupabaseServerClient({ admin: true });
-  const expandedInputs = expandRecurringInputs(input);
-  const recurrenceLabel = buildRecurrenceLabel(input.recurrence);
 
   const { data, error } = await supabase
     .from("visit_events")
-    .insert(
-      expandedInputs.map((entry) =>
-        mapInput(entry, {
-          status: "approved",
-          createdByRole: "admin",
-          recurrenceLabel,
-        }),
-      ),
-    )
+    .insert(mapInput(input, { status: "approved", createdByRole: "admin" }))
     .select("*")
-    .order("event_date", { ascending: true });
+    .single();
 
   if (error) {
     throw new Error(error.message);
   }
 
-  return (data as EventRow[]).map(mapRow);
+  return mapRow(data as EventRow);
 }
 
 export async function updateAdminEvent(eventId: string, input: EventMutationInput) {
   const supabase = createSupabaseServerClient({ admin: true });
-  const { data: existingRow, error: existingError } = await supabase
-    .from("visit_events")
-    .select("notes")
-    .eq("id", eventId)
-    .single();
-
-  if (existingError) {
-    throw new Error(existingError.message);
-  }
 
   const { data, error } = await supabase
     .from("visit_events")
@@ -309,9 +180,6 @@ export async function updateAdminEvent(eventId: string, input: EventMutationInpu
       ...mapInput(input, {
         status: input.suggestedByName ? "pending" : "approved",
         createdByRole: input.suggestedByName ? "guest" : "admin",
-        recurrenceLabel: extractStoredMetadata(
-          (existingRow as { notes: string | null } | null)?.notes ?? null,
-        ).recurrenceLabel ?? null,
       }),
       updated_at: new Date().toISOString(),
     })
@@ -373,7 +241,7 @@ export async function seedDemoEvents() {
     created_by_role: event.createdByRole,
     suggested_by_name: event.suggestedByName ?? null,
     suggested_by_person: event.suggestedByPerson ?? null,
-    notes: buildStoredNotes(event.notes, event.recurrenceLabel),
+    notes: event.notes ?? null,
   }));
 
   const { error } = await supabase.from("visit_events").upsert(rows, {

@@ -7,14 +7,12 @@ import {
   buildCalendarWeeks,
   eventEmojiOptions,
   getPerson,
-  hebrewWeekdays,
   people,
   segmentLabels,
   segmentTimes,
   tripWindow,
   type CalendarDay,
   type PersonId,
-  type RecurrencePattern,
   type SegmentId,
   type TripEvent,
 } from "@/lib/trip-schedule";
@@ -47,9 +45,6 @@ type EventDraft = {
   attendees: PersonId[];
   suggestedByName: string;
   suggestedByPerson: PersonId;
-  recurrencePattern: RecurrencePattern;
-  recurrenceUntil: string;
-  recurrenceWeekdays: number[];
 };
 type SnapshotResponse = {
   events: TripEvent[];
@@ -98,9 +93,6 @@ function createDraft(
       mode === "suggest"
         ? event?.suggestedByPerson ?? options.identity.personId
         : event?.suggestedByPerson ?? options.identity.personId,
-    recurrencePattern: "none",
-    recurrenceUntil: tripWindow.end,
-    recurrenceWeekdays: [new Date(`${event?.date ?? options.date}T12:00:00`).getDay()],
   };
 }
 
@@ -379,16 +371,6 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       attendees: draft.attendees,
       suggestedByName: editable ? existingEvent?.suggestedByName : draft.suggestedByName,
       suggestedByPerson: editable ? existingEvent?.suggestedByPerson : draft.suggestedByPerson,
-      recurrence:
-        !existingEvent && draft.recurrencePattern !== "none"
-          ? {
-              pattern: draft.recurrencePattern,
-              until: draft.recurrenceUntil,
-              weekdays: draft.recurrenceWeekdays,
-            }
-          : {
-              pattern: "none",
-            },
     };
 
     try {
@@ -400,7 +382,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
         body: JSON.stringify(payload),
       });
 
-      const result = await readJson<{ event?: TripEvent; createdCount?: number }>(response);
+      await readJson<{ event?: TripEvent }>(response);
 
       if (!editable) {
         const nextIdentity = {
@@ -413,16 +395,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       }
 
       await refreshSchedule(editable ? undefined : draft.suggestedByName);
-      const createdCount = result.createdCount ?? 1;
-      setNotice(
-        createdCount > 1
-          ? editable
-            ? `נוצרה סדרה של ${createdCount} אירועים.`
-            : `נשלחה סדרה של ${createdCount} הצעות לאישור האדמין.`
-          : editable
-            ? "האירוע נשמר."
-            : "ההצעה נשלחה לאישור האדמין.",
-      );
+      setNotice(editable ? "האירוע נשמר." : "ההצעה נשלחה לאישור האדמין.");
       setModalState(null);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "שמירת האירוע נכשלה.");
@@ -1848,9 +1821,6 @@ function EventCard({
           <p className="mt-0.5 text-[11px] text-stone-600">
             {event.location} · {segmentLabels[event.segment]}
           </p>
-          {event.recurrenceLabel ? (
-            <p className="mt-0.5 text-[11px] text-stone-500">{event.recurrenceLabel}</p>
-          ) : null}
           {event.suggestedByName ? (
             <p className="mt-0.5 text-[11px] text-stone-500">הציע/ה: {event.suggestedByName}</p>
           ) : null}
@@ -1881,9 +1851,6 @@ function EventCard({
               </div>
               <p className="mt-1 text-sm text-stone-600">{event.location}</p>
               <p className="mt-1 text-xs font-medium text-stone-500">{segmentLabels[event.segment]}</p>
-              {event.recurrenceLabel ? (
-                <p className="mt-1 text-xs font-medium text-stone-500">{event.recurrenceLabel}</p>
-              ) : null}
               {event.suggestedByName ? (
                 <p className="mt-1 text-xs text-stone-500">הציע/ה: {event.suggestedByName}</p>
               ) : null}
@@ -2089,7 +2056,6 @@ function EventDetailsModal({
             <Detail label="סטטוס" value={event.status === "approved" ? "מאושר" : event.status === "pending" ? "ממתין לאישור" : "נדחה"} />
             <Detail label="משתתפים" value={event.attendees.map((personId) => getPerson(personId).name).join(", ")} />
             <Detail label="הוצע על ידי" value={event.suggestedByName ?? "אדמין"} />
-            {event.recurrenceLabel ? <Detail label="חזרתיות" value={event.recurrenceLabel} /> : null}
           </div>
 
           {event.notes ? (
@@ -2230,88 +2196,6 @@ function EventFormModal({
               </select>
             </Field>
           </div>
-
-          {!existingEvent ? (
-            <div className="mt-4 rounded-[1.5rem] border border-stone-200 bg-stone-50 p-4">
-              <p className="text-sm font-semibold text-stone-800">חזרתיות</p>
-              <div className="mt-3 grid gap-4 md:grid-cols-2">
-                <Field label="דפוס חזרה">
-                  <select
-                    value={formState.recurrencePattern}
-                    onChange={(event) =>
-                      setFormState((current) => ({
-                        ...current,
-                        recurrencePattern: event.target.value as RecurrencePattern,
-                      }))
-                    }
-                    className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
-                  >
-                    <option value="none">ללא חזרה</option>
-                    <option value="daily">כל יום</option>
-                    <option value="weekly">חוזר שבועית</option>
-                  </select>
-                </Field>
-
-                <Field label="עד תאריך">
-                  <input
-                    type="date"
-                    min={formState.date}
-                    max={tripWindow.end}
-                    value={formState.recurrenceUntil}
-                    onChange={(event) =>
-                      setFormState((current) => ({
-                        ...current,
-                        recurrenceUntil: event.target.value,
-                      }))
-                    }
-                    className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
-                  />
-                </Field>
-              </div>
-
-              {formState.recurrencePattern === "weekly" ? (
-                <div className="mt-4">
-                  <Field label="באילו ימים בשבוע">
-                    <div className="flex flex-wrap gap-2">
-                      {hebrewWeekdays.map((weekday, index) => {
-                        const active = formState.recurrenceWeekdays.includes(index);
-                        return (
-                          <button
-                            key={weekday}
-                            type="button"
-                            onClick={() =>
-                              setFormState((current) => {
-                                const exists = current.recurrenceWeekdays.includes(index);
-                                const nextWeekdays = exists
-                                  ? current.recurrenceWeekdays.filter((value) => value !== index)
-                                  : [...current.recurrenceWeekdays, index].sort((a, b) => a - b);
-
-                                return {
-                                  ...current,
-                                  recurrenceWeekdays: nextWeekdays.length > 0 ? nextWeekdays : current.recurrenceWeekdays,
-                                };
-                              })
-                            }
-                            className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
-                              active
-                                ? "border-stone-950 bg-stone-950 text-white"
-                                : "border-stone-300 bg-white text-stone-700 hover:bg-stone-100"
-                            }`}
-                          >
-                            {weekday}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </Field>
-                </div>
-              ) : null}
-            </div>
-          ) : existingEvent.recurrenceLabel ? (
-            <div className="mt-4 rounded-[1.5rem] border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-600">
-              האירוע הזה שייך לסדרה: {existingEvent.recurrenceLabel}. כרגע עריכה תשפיע רק על המופע הזה.
-            </div>
-          ) : null}
 
           {mode === "suggest" ? (
             <div className="mt-4 grid gap-4 md:grid-cols-2">
