@@ -22,7 +22,7 @@ type ScheduleBoardProps = {
 };
 
 type FilterValue = "all" | PersonId;
-type ViewMode = "weeks" | "day" | "trip";
+type ViewMode = "weeks" | "day" | "trip" | "mobileWeek";
 type ViewerIdentity = {
   name: string;
   personId: PersonId;
@@ -260,6 +260,11 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       }))
       .filter((entry) => entry.events.length > 0);
   }, [filteredEvents]);
+
+  const selectedWeek = useMemo(
+    () => weeks.find((week) => week.days.some((day) => day.date === selectedDay)) ?? weeks[0],
+    [selectedDay],
+  );
 
   function openNewEvent(date: string, segment: SegmentId) {
     setSelectedDay(date);
@@ -515,6 +520,13 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
               <ViewButton active={viewMode === "trip"} onClick={() => setViewMode("trip")}>
                 כל הביקור
               </ViewButton>
+              <ViewButton
+                active={viewMode === "mobileWeek"}
+                onClick={() => setViewMode("mobileWeek")}
+                className="md:hidden"
+              >
+                שבוע נייד
+              </ViewButton>
             </div>
           </div>
 
@@ -735,6 +747,30 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                   />
                 ))}
               </div>
+            </section>
+          ) : null}
+
+          {!loading && viewMode === "mobileWeek" ? (
+            <section className="rounded-[2rem] border border-[var(--panel-border)] bg-[var(--panel)] p-4 shadow-[0_18px_60px_rgba(28,25,23,0.06)] md:p-6">
+              <MobileWeekAgenda
+                week={selectedWeek}
+                events={filteredEvents}
+                editable={editable}
+                isEditing={isEditing}
+                draggedEventId={draggedEventId}
+                dropTarget={dropTarget}
+                selectedDay={selectedDay}
+                onSelectDay={setSelectedDay}
+                onOpenEvent={(eventId) => setModalState({ type: "details", eventId })}
+                onOpenCreateEvent={openNewEvent}
+                onDragStart={setDraggedEventId}
+                onDragEnd={() => {
+                  setDraggedEventId(null);
+                  setDropTarget(null);
+                }}
+                onSetDropTarget={setDropTarget}
+                onMoveEvent={handleMoveEvent}
+              />
             </section>
           ) : null}
 
@@ -1034,6 +1070,230 @@ function WeekSection({
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function MobileWeekAgenda({
+  week,
+  events,
+  editable,
+  isEditing,
+  draggedEventId,
+  dropTarget,
+  selectedDay,
+  onSelectDay,
+  onOpenEvent,
+  onOpenCreateEvent,
+  onDragStart,
+  onDragEnd,
+  onSetDropTarget,
+  onMoveEvent,
+}: {
+  week: (typeof weeks)[number];
+  events: TripEvent[];
+  editable: boolean;
+  isEditing: boolean;
+  draggedEventId: string | null;
+  dropTarget: DropTarget | null;
+  selectedDay: string;
+  onSelectDay: (date: string) => void;
+  onOpenEvent: (eventId: string) => void;
+  onOpenCreateEvent: (date: string, segment: SegmentId) => void;
+  onDragStart: (eventId: string) => void;
+  onDragEnd: () => void;
+  onSetDropTarget: (target: DropTarget | null) => void;
+  onMoveEvent: (eventId: string, date: string, segment: SegmentId) => Promise<void>;
+}) {
+  return (
+    <div className="space-y-4 md:hidden">
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">{week.label}</p>
+          <h2 className="mt-1 text-xl font-semibold text-stone-950">שבוע מלא במבט נייד</h2>
+        </div>
+        <div className="rounded-full border border-stone-200 bg-white px-3 py-1 text-xs font-semibold text-stone-600">
+          7 ימים יחד
+        </div>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1 rounded-[1.5rem] border border-stone-200 bg-white/80 p-2">
+        {week.days.map((day) => (
+          <button
+            key={day.date}
+            type="button"
+            onClick={() => onSelectDay(day.date)}
+            className={`rounded-2xl px-1 py-2 text-center transition ${
+              day.inTripRange
+                ? selectedDay === day.date
+                  ? "bg-stone-950 text-white"
+                  : "bg-stone-50 text-stone-900"
+                : "bg-stone-100/70 text-stone-400"
+            }`}
+          >
+            <p className="text-[10px] font-semibold">{day.dayName.replace("יום ", "")}</p>
+            <p className="mt-1 text-2xl font-semibold leading-none">{day.dayNumber}</p>
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-2">
+        {segments.map((segment) => (
+          <MobileAgendaRow
+            key={segment}
+            week={week}
+            segment={segment}
+            events={events}
+            editable={editable}
+            isEditing={isEditing}
+            draggedEventId={draggedEventId}
+            dropTarget={dropTarget}
+            onOpenEvent={onOpenEvent}
+            onOpenCreateEvent={onOpenCreateEvent}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            onSetDropTarget={onSetDropTarget}
+            onMoveEvent={onMoveEvent}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function MobileAgendaRow({
+  week,
+  segment,
+  events,
+  editable,
+  isEditing,
+  draggedEventId,
+  dropTarget,
+  onOpenEvent,
+  onOpenCreateEvent,
+  onDragStart,
+  onDragEnd,
+  onSetDropTarget,
+  onMoveEvent,
+}: {
+  week: (typeof weeks)[number];
+  segment: SegmentId;
+  events: TripEvent[];
+  editable: boolean;
+  isEditing: boolean;
+  draggedEventId: string | null;
+  dropTarget: DropTarget | null;
+  onOpenEvent: (eventId: string) => void;
+  onOpenCreateEvent: (date: string, segment: SegmentId) => void;
+  onDragStart: (eventId: string) => void;
+  onDragEnd: () => void;
+  onSetDropTarget: (target: DropTarget | null) => void;
+  onMoveEvent: (eventId: string, date: string, segment: SegmentId) => Promise<void>;
+}) {
+  return (
+    <div className="rounded-[1.5rem] border border-stone-200 bg-white/85 p-2">
+      <div className="mb-2 flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-stone-900">{segmentLabels[segment]}</p>
+          <p className="text-[11px] text-stone-500">{segmentTimes[segment]}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-7 gap-1">
+        {week.days.map((day) => {
+          const cellEvents = events.filter(
+            (event) => event.date === day.date && event.segment === segment,
+          );
+          const isActiveDropTarget =
+            draggedEventId !== null &&
+            dropTarget?.date === day.date &&
+            dropTarget?.segment === segment;
+
+          return (
+            <div
+              key={`${day.date}-${segment}`}
+              onDragOver={(event) => {
+                if (editable && isEditing && day.inTripRange) {
+                  event.preventDefault();
+                  onSetDropTarget({ date: day.date, segment });
+                }
+              }}
+              onDragEnter={(event) => {
+                if (editable && isEditing && day.inTripRange) {
+                  event.preventDefault();
+                  onSetDropTarget({ date: day.date, segment });
+                }
+              }}
+              onDragLeave={(event) => {
+                if (editable && isEditing && isActiveDropTarget && !event.currentTarget.contains(event.relatedTarget as Node | null)) {
+                  onSetDropTarget(null);
+                }
+              }}
+              onDrop={(event) => {
+                event.preventDefault();
+                if (editable && isEditing && day.inTripRange && draggedEventId) {
+                  void onMoveEvent(draggedEventId, day.date, segment);
+                  onDragEnd();
+                }
+              }}
+              className={`min-h-28 rounded-[1.1rem] border p-1 transition ${
+                day.inTripRange
+                  ? isActiveDropTarget
+                    ? "border-teal-400 bg-teal-50"
+                    : "border-stone-200 bg-stone-50/80"
+                  : "border-stone-200 bg-stone-100/70"
+              }`}
+            >
+              {cellEvents.length > 0 ? (
+                <div className="space-y-1">
+                  {cellEvents.map((event) => (
+                    <button
+                      key={event.id}
+                      type="button"
+                      draggable={editable && isEditing && event.status !== "rejected"}
+                      onDragStart={() => onDragStart(event.id)}
+                      onDragEnd={onDragEnd}
+                      onClick={() => onOpenEvent(event.id)}
+                      className="w-full rounded-xl border border-white/80 bg-white px-1.5 py-1 text-right shadow-sm"
+                    >
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-[11px] leading-none">{event.emoji ?? "•"}</span>
+                        <AttendeeMarkers attendees={event.attendees} compact />
+                      </div>
+                      <p
+                        className="mt-1 text-[11px] font-semibold leading-4 text-stone-900"
+                        style={{
+                          display: "-webkit-box",
+                          WebkitLineClamp: 3,
+                          WebkitBoxOrient: "vertical",
+                          overflow: "hidden",
+                        }}
+                      >
+                        {event.title}
+                      </p>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  disabled={!day.inTripRange}
+                  onClick={() => onOpenCreateEvent(day.date, segment)}
+                  className={`flex h-full min-h-24 w-full items-center justify-center rounded-[1rem] border border-dashed px-1 text-center text-[11px] ${
+                    day.inTripRange
+                      ? isActiveDropTarget
+                        ? "border-teal-500 bg-teal-50 text-teal-900"
+                        : "border-stone-300 text-stone-400"
+                      : "border-stone-300/60 text-stone-300"
+                  }`}
+                >
+                  {day.inTripRange ? (isActiveDropTarget ? "שחרור" : editable ? "+" : "פנוי") : "—"}
+                </button>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -1491,10 +1751,12 @@ function FilterButton({
 function ViewButton({
   active,
   onClick,
+  className,
   children,
 }: {
   active: boolean;
   onClick: () => void;
+  className?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -1503,7 +1765,7 @@ function ViewButton({
       onClick={onClick}
       className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
         active ? "bg-teal-950 text-white" : "border border-teal-100 bg-teal-50 text-teal-950 hover:bg-teal-100"
-      }`}
+      } ${className ?? ""}`}
     >
       {children}
     </button>
