@@ -38,14 +38,14 @@ export default async function AdminPage({
       <div className="mb-6 flex flex-col gap-3 rounded-[1.75rem] border border-sky-200 bg-sky-50 px-5 py-4 text-sky-950 md:flex-row md:items-center md:justify-between">
         <div>
           <p className="text-sm uppercase tracking-[0.18em] text-sky-700">
-            מצב אדמין
+            מצב עריכה
           </p>
           <p className="mt-1 font-semibold">
-            מצב העריכה פתוח עבור הביקור בין 3 ביוני 2026 ל-24 ביוני 2026.
+            כאן אפשר לעדכן את לוח הביקור בין 3 ביוני 2026 ל-24 ביוני 2026.
           </p>
           {isLocalAdminBypassEnabled() ? (
             <p className="mt-1 text-sm text-sky-700">
-              עקיפת סיסמה פעילה בסביבה המקומית בלבד.
+              עקיפת הסיסמה פעילה רק בסביבה המקומית.
             </p>
           ) : null}
         </div>
@@ -55,7 +55,7 @@ export default async function AdminPage({
             href="/"
             className="inline-flex items-center justify-center rounded-full border border-sky-300 bg-white px-4 py-2 text-sm font-semibold text-sky-950 transition hover:bg-sky-100"
           >
-            חזרה לדף הציבורי
+            חזרה ללוח המשותף
           </Link>
           {!isLocalAdminBypassEnabled() ? (
             <form action="/api/admin/logout" method="post">
@@ -63,7 +63,7 @@ export default async function AdminPage({
                 type="submit"
                 className="rounded-full bg-sky-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-sky-900"
               >
-                יציאה ממצב אדמין
+                יציאה ממצב עריכה
               </button>
             </form>
           ) : null}

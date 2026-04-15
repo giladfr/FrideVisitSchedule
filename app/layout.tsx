@@ -13,14 +13,14 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "לוח ביקור בישראל",
-  description: "לוח זמנים משפחתי לביקור בישראל.",
+  title: "ביקור פרידאים בישראל - קיץ 2026",
+  description: "לוח הזמנים של ביקור פרידאים בישראל בקיץ 2026.",
   manifest: "/manifest.webmanifest",
   themeColor: "#f7f1e6",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "לוח ביקור",
+    title: "ביקור פרידאים",
   },
   icons: {
     icon: [

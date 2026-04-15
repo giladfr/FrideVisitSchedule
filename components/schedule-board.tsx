@@ -513,13 +513,19 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
             editable ? "lg:gap-5" : "xl:flex-row xl:items-end xl:justify-between"
           }`}
         >
+          <div className="pointer-events-none absolute left-0 top-0 flex h-14 w-20 items-center justify-center rounded-br-[1.5rem] rounded-tl-[1.25rem] border-b border-r border-sky-200/80 bg-white/85 shadow-sm">
+            <span className="text-2xl leading-none" aria-hidden="true">
+              🇮🇱
+            </span>
+          </div>
+
           <div className={`space-y-4 ${editable ? "" : ""}`}>
             <div className="flex flex-wrap gap-2">
               <p className="inline-flex rounded-full border border-teal-900/15 bg-teal-900/5 px-3 py-1 text-sm font-medium text-teal-950">
                 {tripWindow.start} עד {tripWindow.end}
               </p>
               <p className="inline-flex rounded-full border border-stone-300 bg-white/80 px-3 py-1 text-sm font-medium text-stone-700">
-                {editable ? "אישור וניהול אדמין" : "צפייה ושיגור הצעות"}
+                {editable ? "עריכה ואישור" : "לצפייה ולעדכון משותף"}
               </p>
               {databaseReady ? (
                 <p className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-900">
@@ -538,19 +544,19 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                   editable ? "text-3xl sm:text-4xl" : "text-4xl sm:text-5xl"
                 }`}
               >
-                {editable ? "מרכז ניהול הביקור" : "לוח הביקור בישראל"}
+                {editable ? "עדכון וניהול הביקור" : "ביקור פרידאים בישראל - קיץ 2026"}
               </h1>
               <p className={`text-[var(--muted)] ${editable ? "max-w-4xl text-base leading-7" : "max-w-3xl text-lg leading-8"}`}>
                 {editable
-                  ? "ניהול מהיר של האירועים, אישור הצעות, עריכה וגרירה של לוח הזמנים המשפחתי."
-                  : "לוח משפחתי בעברית עם תצוגה שבועית, מצב מובייל, הצעות לאישור, ופאנל אדמין שמרכז את כל מה שממתין לטיפול."}
+                  ? "כאן אפשר לעדכן את הלוח, לאשר הצעות, להזיז אירועים ולשמור על סדר לכולם."
+                  : "כל מה שמתוכנן לביקור במקום אחד — מפגשים, ארוחות, טיולים, וכל שאר הבלגן המשפחתי הטוב."}
               </p>
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <StatsCard label="שבועות" value={`${weeks.length}`} />
+              <StatsCard label="שבועות בביקור" value={`${weeks.length}`} />
               <StatsCard label="ימי ביקור" value={`${tripDays.length}`} />
-              <StatsCard label="אירועים מוצגים" value={`${filteredEvents.length}`} />
+              <StatsCard label="אירועים בלוח" value={`${filteredEvents.length}`} />
             </div>
           </div>
 
@@ -559,13 +565,13 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
               href={editable ? "/" : "/admin"}
               className="inline-flex items-center justify-center rounded-full bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800"
             >
-              {editable ? "חזרה לצפייה הציבורית" : "כניסה למצב אדמין"}
+              {editable ? "חזרה ללוח המשותף" : "כניסה לעריכה"}
             </Link>
             <Link
               href="/api/status"
               className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-white/80 px-5 py-3 text-sm font-semibold text-stone-900 transition hover:border-stone-400 hover:bg-white"
             >
-              מצב המערכת
+              מצב החיבור
             </Link>
           </div>
         </div>
@@ -577,7 +583,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                 {currentMonthLabel}
               </p>
               <p className="mt-1 text-xl font-semibold text-stone-950">
-                שבועות מלאים, יום בודד, או תצוגה מרוכזת של כל הביקור
+                אפשר לעבור בין תצוגת שבוע, יום בודד, מבט על כל הביקור ושבוע אג׳נדה
               </p>
             </div>
 
@@ -634,10 +640,10 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
           {!editable ? (
             <div className="flex flex-col gap-3 rounded-[1.25rem] border border-stone-200 bg-white/80 p-4 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="font-semibold text-stone-900">מי מציע/ה אירועים?</p>
+                <p className="font-semibold text-stone-900">רוצים להוסיף משהו ללוח?</p>
                 <p className="mt-1 text-sm text-stone-600">
-                  כדי לראות הצעות ממתינות של אותו אדם ולשלוח הצעה חדשה, כדאי להזדהות בשם ובבן
-                  המשפחה הרלוונטי.
+                  אפשר להזדהות בשם ובבן המשפחה הרלוונטי, להציע אירוע חדש, ולראות אחר כך את
+                  ההצעות שמחכות לאישור.
                 </p>
               </div>
 
@@ -647,11 +653,11 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                   onClick={() => openNewEvent(selectedDay, "morning")}
                   className="rounded-full bg-stone-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-800"
                 >
-                  הצעת אירוע חדשה
+                  הוספת הצעה חדשה
                 </button>
                 {viewerIdentity.name ? (
                   <span className="inline-flex items-center rounded-full border border-stone-300 bg-white px-4 py-2 text-sm text-stone-700">
-                    מזוהה בתור {viewerIdentity.name} · {getPerson(viewerIdentity.personId).name}
+                    כרגע מזוהה: {viewerIdentity.name} · {getPerson(viewerIdentity.personId).name}
                   </span>
                 ) : null}
               </div>
@@ -696,9 +702,9 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
         <section className="rounded-[1.75rem] border border-sky-200 bg-sky-50 p-4 text-sky-950 shadow-[0_12px_40px_rgba(28,25,23,0.05)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="font-semibold">מצב אדמין פעיל</p>
+              <p className="font-semibold">מצב עריכה פעיל</p>
               <p className="mt-1 text-sm leading-7">
-                כאן אפשר לגרור אירועים, לאשר או לדחות הצעות, ולנהל את הלוח המשותף מתוך פאנל אחד.
+                כאן אפשר להזיז אירועים, לעדכן פרטים, ולאשר או לדחות הצעות שנשלחו למשפחה.
               </p>
             </div>
 
@@ -712,7 +718,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                     : "border border-sky-300 bg-white text-sky-950 hover:bg-sky-100"
                 }`}
               >
-                {isEditing ? "מצב עריכה פעיל" : "הפעלת מצב עריכה"}
+                {isEditing ? "עריכה פעילה" : "הפעלת עריכה"}
               </button>
               <button
                 type="button"
@@ -917,7 +923,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
 
             <div className="rounded-[1.75rem] border border-[var(--panel-border)] bg-[var(--panel)] p-4 shadow-[0_16px_50px_rgba(28,25,23,0.06)]">
               <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
-                הצעות שממתינות לאישור
+                הצעות שמחכות לאישור
               </p>
               <div className="mt-4 space-y-3">
                 {pendingSuggestions.length > 0 ? (
@@ -962,7 +968,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                   ))
                 ) : (
                   <div className="rounded-[1.25rem] border border-dashed border-stone-300 bg-white/70 px-4 py-6 text-sm text-stone-500">
-                    אין כרגע הצעות שממתינות לאישור.
+                    אין כרגע הצעות שמחכות לאישור.
                   </div>
                 )}
               </div>
