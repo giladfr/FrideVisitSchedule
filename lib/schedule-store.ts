@@ -161,7 +161,7 @@ export async function fetchScheduleSnapshot(options?: {
 }
 
 export async function createSuggestedEvent(input: EventMutationInput) {
-  const supabase = createSupabaseServerClient();
+  const supabase = createSupabaseServerClient({ admin: true });
 
   const { data, error } = await supabase
     .from("visit_events")
