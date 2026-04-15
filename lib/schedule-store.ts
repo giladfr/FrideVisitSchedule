@@ -109,7 +109,6 @@ export async function fetchScheduleSnapshot(options?: {
 }): Promise<ScheduleSnapshot> {
   const supabase = createSupabaseServerClient({
     admin: options?.admin,
-    viewerName: options?.viewerName,
   });
 
   const { data, error } = await supabase
@@ -130,17 +129,39 @@ export async function fetchScheduleSnapshot(options?: {
     throw new Error(error.message);
   }
 
+  const approvedEvents = sortEvents((data as EventRow[]).map(mapRow));
+
+  if (!options?.admin && options?.viewerName?.trim()) {
+    const adminSupabase = createSupabaseServerClient({ admin: true });
+    const { data: pendingData, error: pendingError } = await adminSupabase
+      .from("visit_events")
+      .select("*")
+      .eq("status", "pending")
+      .ilike("suggested_by_name", options.viewerName.trim());
+
+    if (!pendingError && pendingData) {
+      const merged = sortEvents([
+        ...approvedEvents,
+        ...(pendingData as EventRow[]).map(mapRow),
+      ]);
+
+      return {
+        events: merged,
+        usingDemoData: false,
+        databaseReady: true,
+      };
+    }
+  }
+
   return {
-    events: sortEvents((data as EventRow[]).map(mapRow)),
+    events: approvedEvents,
     usingDemoData: false,
     databaseReady: true,
   };
 }
 
 export async function createSuggestedEvent(input: EventMutationInput) {
-  const supabase = createSupabaseServerClient({
-    viewerName: input.suggestedByName,
-  });
+  const supabase = createSupabaseServerClient();
 
   const { data, error } = await supabase
     .from("visit_events")
