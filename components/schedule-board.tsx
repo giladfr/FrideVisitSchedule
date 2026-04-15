@@ -524,18 +524,11 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
               <p className="inline-flex rounded-full border border-teal-900/15 bg-teal-900/5 px-3 py-1 text-sm font-medium text-teal-950">
                 {tripWindow.start} עד {tripWindow.end}
               </p>
-              <p className="inline-flex rounded-full border border-stone-300 bg-white/80 px-3 py-1 text-sm font-medium text-stone-700">
-                {editable ? "עריכה ואישור" : "לצפייה ולעדכון משותף"}
-              </p>
-              {databaseReady ? (
-                <p className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-sm font-medium text-emerald-900">
-                  מחובר ל-Supabase
+              {editable ? (
+                <p className="inline-flex rounded-full border border-stone-300 bg-white/80 px-3 py-1 text-sm font-medium text-stone-700">
+                  עריכה ואישור
                 </p>
-              ) : (
-                <p className="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-sm font-medium text-amber-900">
-                  מצב דמו עד שסכימת ה-DB תופעל
-                </p>
-              )}
+              ) : null}
             </div>
 
             <div className="space-y-2">
@@ -566,12 +559,6 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
               className="inline-flex items-center justify-center rounded-full bg-stone-950 px-5 py-3 text-sm font-semibold text-white transition hover:bg-stone-800"
             >
               {editable ? "חזרה ללוח המשותף" : "כניסה לעריכה"}
-            </Link>
-            <Link
-              href="/api/status"
-              className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-white/80 px-5 py-3 text-sm font-semibold text-stone-900 transition hover:border-stone-400 hover:bg-white"
-            >
-              מצב החיבור
             </Link>
           </div>
         </div>
@@ -1005,23 +992,6 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
               </div>
             </div>
 
-            <div className="rounded-[1.75rem] border border-[var(--panel-border)] bg-[var(--panel)] p-4 shadow-[0_16px_50px_rgba(28,25,23,0.06)]">
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
-                מצב מסד הנתונים
-              </p>
-              <div className="mt-4 space-y-3 text-sm text-stone-700">
-                <p>
-                  {databaseReady
-                    ? "סכימת Supabase זמינה והאפליקציה שומרת וקוראת מה-DB."
-                    : "עדיין אין טבלת visit_events פעילה, ולכן האפליקציה מציגה דמו. יש להפעיל את supabase/schema.sql."}
-                </p>
-                <p>
-                  {usingDemoData
-                    ? "כרגע מוצגים אירועי דמו מקומיים."
-                    : "כרגע מוצגים נתונים חיים מתוך Supabase."}
-                </p>
-              </div>
-            </div>
           </aside>
         ) : null}
       </div>

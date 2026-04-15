@@ -1,251 +1,272 @@
 # Family Israel Visit Scheduler
 
-## Goal
+## Project Status
 
-Build a mobile-friendly web app for a three-week family visit to Israel that:
+This file now reflects the app as it exists today, not just the original idea.
 
-- shows the schedule for the whole family and each individual family member
-- supports shared events and person-specific events
-- can be viewed by family and friends from any device
-- can be edited by the organizer from desktop and mobile
-- syncs with Google Calendar so existing events become the base schedule
-- stays low-cost and simple to host
+The project is live and usable as a shared family trip site for the June 3, 2026 through June 24, 2026 visit to Israel.
 
-## Recommended Stack
+## Current Product
 
-### Frontend and Hosting
+### Public experience
 
-- Next.js on Vercel
-- Tailwind CSS for responsive UI
-- FullCalendar for day, week, and agenda views with drag-and-drop
-
-### Database and Auth
-
-- Supabase Postgres
-- Supabase Auth with magic link or Google sign-in
-
-### Sync and Background Jobs
-
-- Google Calendar API for read/write sync
-- Vercel Cron or Supabase Edge Functions for periodic sync
-
-## Why This Stack
-
-- Vercel is a good fit for a Next.js app and has a generous free tier.
-- Supabase is the simplest low-cost way to get Postgres, auth, and row-level security.
-- FullCalendar already supports the hardest UI parts: calendar views, event resizing, drag-and-drop, mobile responsiveness, and recurring event support if needed later.
-- Google Calendar integration is straightforward enough for an MVP if we start with one-way import and then add two-way sync carefully.
-
-## Recommended Product Scope
-
-### MVP
-
-- public read-only shared schedule page
-- private organizer login
-- family member filters
+- public shared trip site in Hebrew
+- right-to-left layout
+- mobile-friendly design
+- desktop and mobile calendar views
+- family member filtering
 - shared events and person-specific events
-- day view, week view, and full-trip list view
-- event details: title, description, location, date, time, attendees
+- event details with title, emoji, location, notes, date, segment, and attendees
+- suggestion flow for family and friends
+
+### Admin experience
+
+- password-based admin mode in production
+- local admin bypass in development
+- create, edit, delete, approve, and reject events
 - drag-and-drop editing
-- import from one Google Calendar
-- manual event creation and editing inside the app
+- click empty slot to create a new event
+- pending suggestions queue
+- conflict detection for overlapping events
 
-### Phase 2
+### Data and hosting
 
-- two-way Google Calendar sync
-- friend/relative-specific shared links
-- color-coding by person
-- map links for locations
-- optional RSVP or notes from relatives
+- Next.js app on Vercel
+- Supabase-backed event storage
+- production deployment on Vercel
+- GitHub repo connected
+- PWA support for adding to iPhone home screen
 
-### Phase 3
+## Implemented Features
 
-- notifications or reminders
-- offline-friendly mobile behavior
-- duplicate/conflict warnings
-- attachments or photo links
+### Infrastructure
 
-## Core User Roles
+- GitHub repository created and connected
+- Vercel project configured and deployed
+- Supabase project connected
+- production database schema created
+- seed/demo event flow added for initial data population
 
-### Organizer
+### Schedule UI
 
-- full edit access
-- connects Google Calendar
-- creates and updates events
-- assigns attendees
+- Hebrew interface copy
+- RTL weekly calendar layout
+- Sunday-first week structure for Israel
+- out-of-range days shown grayed out
+- week view
+- day view
+- full-trip view
+- agenda-style week view available on both mobile and desktop
+- responsive layout for phone, tablet, and desktop
 
-### Family Viewer
+### Events
 
-- sees all events or filtered events
-- mobile-friendly access
+- event creation
+- event editing
+- event deletion
+- drag-and-drop movement between slots
+- event emoji selection
+- location support
+- notes support
+- attendee selection
+- compact event cards
+- attendee markers based on person emojis:
+  - `👨` גלעד
+  - `👩` יערה
+  - `🧒` ילדים
+- full-family events shown with grouped people emojis instead of a separate family icon
 
-### Friend/Relative Viewer
+### Suggestions and approval flow
 
-- read-only access to the shared schedule
-- optional filtered view if you want to share only relevant events later
+- non-admin users can suggest events
+- suggestion captures who suggested it
+- pending suggestions visible only where appropriate before approval
+- admin can approve suggestions
+- admin can reject suggestions
+- admin can edit suggestions before approval
 
-## Data Model
+### Admin workflow
 
-### Person
+- dedicated admin page
+- edit mode toggle
+- drag-drop with visible drop targets
+- optimistic UI for drag/drop so the board does not blank and reload
+- conflict list in admin sidebar
+- pending suggestion queue in admin sidebar
 
-- id
-- name
-- role
-- color
-- is_family_member
+### Visual design
 
-### Event
+- Israel-themed gradient background
+- smoother fixed background without scroll seam
+- Israel flag accent in the hero
+- custom favicon and app icons with calendar + Israeli flag theme + Star of David
+- streamlined family-friendly Hebrew copy
 
-- id
-- title
-- description
-- location_name
-- location_address
-- start_at
-- end_at
-- all_day
-- visibility
-- source (`manual` or `google`)
-- google_event_id
-- last_synced_at
+### Mobile support
 
-### EventAttendee
+- mobile-safe modal and form layout
+- mobile agenda week view
+- agenda week view remains available in landscape
+- PWA manifest and Apple touch icon
+- can be added to iPhone home screen as `ביקור פרידאים`
 
-- id
-- event_id
-- person_id
+## Decisions We Changed
 
-### CalendarConnection
+These were in the original plan but were intentionally changed during implementation.
 
-- id
-- provider
-- google_calendar_id
-- refresh_token
-- access_token
-- token_expires_at
+### Auth
 
-## Important Product Decisions
+Original idea:
 
-### Shared vs Personal Events
+- Supabase Auth or organizer login
 
-Each event should support one or more assigned people:
+Current implementation:
 
-- if assigned to everyone, treat it as a shared family event
-- if assigned to one person, treat it as a personal event
-- if assigned to a subset, show it only for those people plus the combined family view
+- simple password-based admin mode
+- no full user account system
 
-This is more flexible than having separate event types.
+Reason:
 
-### Google Calendar Sync
+- faster, cheaper, and enough for a family trip site
 
-Recommended rollout:
+### Color coding
 
-1. Start with one-way sync from Google Calendar into the app.
-2. Let the app create additional manual events.
-3. Add two-way sync only after the event model is stable.
+Original idea:
 
-This avoids early sync conflicts and keeps the MVP much simpler.
+- person colors as the main family distinction
 
-### Sharing Model
+Current implementation:
 
-For the first version, use:
+- person emojis are the main visual language
 
-- private organizer dashboard
-- public read-only trip page with optional secret URL
+Reason:
 
-This is cheaper and faster than building a full permissions system on day one.
+- friendlier and easier to scan in this family/trip context
 
-## Suggested Pages
+### Calendar library
 
-### `/`
+Original idea:
 
-- trip overview
-- today’s events
-- quick filters by person
+- FullCalendar
 
-### `/calendar`
+Current implementation:
 
-- day/week/month-like planning views
-- drag-and-drop editing for organizer
+- custom-built schedule UI in Next.js/React
 
-### `/trip`
+Reason:
 
-- full three-week timeline list
+- easier to tailor to Hebrew, RTL, segmented day-parts, and the specific trip workflow
 
-### `/event/[id]`
+### Recurrence
 
-- event details
-- directions link
-- attendees
+Original idea:
 
-### `/admin`
+- possible recurring event support
 
-- event management
-- Google Calendar sync controls
-- people management
+Current implementation:
 
-## UI Notes
+- recurrence intentionally removed
 
-- default to a simple mobile-first design
-- use person chips and color labels for filtering
-- support sticky date headers in list view
-- make location tap open Google Maps or Waze
-- keep event cards compact but expandable
+Reason:
 
-## Cost Estimate
+- not needed for this trip and not worth the added complexity
 
-For an app like this, the likely MVP cost can be:
+## Deferred / Not Implemented Yet
 
-- Vercel: free
-- Supabase: free
-- Google Calendar API: free within normal personal usage
+### Google Calendar sync
 
-This should stay free unless traffic or database usage becomes unusually high.
+Not implemented yet.
 
-## Technical Risks
+Status:
 
-### Two-way Sync Complexity
+- intentionally deferred
 
-Google sync is the main area where apps get messy. Conflicts can happen if:
+Reason:
 
-- an event is edited in both places
-- an event is deleted in one system
-- attendees differ between app and calendar
+- the schedule and admin workflow needed to stabilize first
 
-For that reason, MVP should treat Google as the source of imported base events and keep app-created events separate until phase 2.
+### Maps integration
 
-### Permissions
+Not implemented yet.
 
-If friends can only view, a secret shared URL is enough for MVP. If later you want per-person private events hidden from outsiders, we should add authenticated viewer roles and event visibility rules.
+Possible future addition:
 
-## Best MVP Build Order
+- tap location to open Google Maps or Waze
 
-1. Scaffold Next.js app on Vercel
-2. Add Supabase schema and auth
-3. Add people and event CRUD
-4. Add calendar UI with filters
-5. Add public shared trip page
-6. Add Google Calendar import sync
-7. Polish mobile UX
+### Notifications
 
-## Recommendation
+Not implemented yet.
 
-The best first version is:
+Possible future addition:
 
-- Next.js on Vercel
-- Supabase for database and auth
-- FullCalendar for the interactive scheduler
-- Google Calendar one-way sync first
+- reminders or day-of alerts
 
-That gives you a practical, low-cost system we can build quickly without locking ourselves into a fragile architecture.
+### Per-viewer privacy rules
 
-## Next Step
+Not implemented yet.
 
-If we continue, the next implementation step should be to scaffold:
+Current behavior:
 
-- Next.js app router project
-- Supabase integration
-- initial schema for people, events, and attendees
-- calendar page with mock data
+- the site is designed as a practical shared family/friends schedule
 
-That will give us a working shell before we connect Google Calendar.
+## Current Data Model
+
+### People
+
+- `gilad`
+- `yaara`
+- `kids`
+
+### Event fields in use
+
+- `id`
+- `title`
+- `emoji`
+- `date`
+- `segment`
+- `location`
+- `notes`
+- `attendees`
+- `status`
+- `suggestedByName`
+- `suggestedByPerson`
+- `createdAt`
+
+### Event statuses
+
+- `approved`
+- `pending`
+- `rejected`
+
+## Current Hosting/Deployment Model
+
+- GitHub for source control
+- Vercel for production hosting
+- Supabase for persistent event storage
+- local development against the same cloud Supabase project
+
+## What Is Working Well
+
+- shared family schedule experience
+- admin editing and approval flow
+- Hebrew/RTL support
+- mobile usage
+- PWA installability
+- low-friction family suggestion workflow
+
+## Known Future Improvement Areas
+
+- map links from locations
+- richer admin editing panel
+- comments when rejecting/changing suggestions
+- better visual handling for very dense weeks
+- optional Google Calendar import later
+
+## Recommended Next Steps
+
+If development continues, the best next items are:
+
+1. Add map links for event locations
+2. Improve the admin editor into a faster side panel / drawer workflow
+3. Add optional comments on approval/rejection
+4. Revisit Google Calendar import only after the above polish is done

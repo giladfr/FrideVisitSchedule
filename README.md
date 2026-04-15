@@ -32,6 +32,7 @@ Required next values:
 
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `ADMIN_PASSWORD`
+- `AGENT_API_TOKEN` if you want to use the external agent API
 
 Optional:
 
@@ -49,7 +50,75 @@ npm run dev
 - `/` public visit planner
 - `/admin` password-only admin mode
 - `/api/events` schedule read/create endpoint
-- `/api/status` infrastructure status
+- `/api/agent/events` token-auth external agent API
+
+## External agent API
+
+This project now includes a machine-friendly API for agents such as OpenClaw.
+
+Authentication:
+
+- send `Authorization: Bearer <AGENT_API_TOKEN>`
+
+Main endpoints:
+
+- `GET /api/agent/events?date=2026-06-04`
+- `GET /api/agent/events?from=2026-06-03&to=2026-06-24`
+- `GET /api/agent/events?person=gilad&status=pending`
+- `POST /api/agent/events` with `operation: "create"` or `operation: "suggest"`
+- `PATCH /api/agent/events/:id` to update an event
+- `PATCH /api/agent/events/:id` with `{"action":"approve"}` or `{"action":"reject"}`
+- `DELETE /api/agent/events/:id`
+
+Example create request:
+
+```bash
+curl -X POST "$BASE_URL/api/agent/events" \
+  -H "Authorization: Bearer $AGENT_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "operation": "create",
+    "title": "ארוחת ערב עם המשפחה",
+    "emoji": "🍽️",
+    "date": "2026-06-12",
+    "segment": "evening",
+    "location": "רעננה",
+    "attendees": ["gilad", "yaara", "kids"],
+    "notes": "לקבוע שעה סופית מול כולם"
+  }'
+```
+
+Example suggest request:
+
+```bash
+curl -X POST "$BASE_URL/api/agent/events" \
+  -H "Authorization: Bearer $AGENT_API_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "operation": "suggest",
+    "title": "טיול קצר לים",
+    "emoji": "🏖️",
+    "date": "2026-06-14",
+    "segment": "morning",
+    "location": "חוף בהרצליה",
+    "attendees": ["yaara", "kids"],
+    "suggestedByName": "יובל",
+    "suggestedByPerson": "gilad"
+  }'
+```
+
+Valid `person` values:
+
+- `gilad`
+- `yaara`
+- `kids`
+
+Valid `segment` values:
+
+- `morning`
+- `noon`
+- `evening`
+- `night`
 
 ## Supabase setup
 
