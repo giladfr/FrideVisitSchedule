@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { buildGoogleMapsSearchUrl } from "@/lib/maps";
 import { fetchScheduleSnapshot } from "@/lib/schedule-store";
 import { segmentLabels, type SegmentId } from "@/lib/trip-schedule";
 
@@ -38,9 +39,11 @@ function formatLocalDateTime(date: string, time: string) {
 
 function toIcsEvent(baseUrl: string, event: Awaited<ReturnType<typeof fetchScheduleSnapshot>>["events"][number]) {
   const times = segmentTimeRanges[event.segment];
+  const mapsUrl = buildGoogleMapsSearchUrl(event.location);
   const descriptionParts = [
     event.notes?.trim(),
     `חלק ביום: ${segmentLabels[event.segment]}`,
+    mapsUrl ? `מפה: ${mapsUrl}` : undefined,
     `נוצר דרך לוח הביקור: ${baseUrl}`,
   ].filter(Boolean);
 

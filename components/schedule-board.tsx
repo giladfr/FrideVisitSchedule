@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
+import { buildGoogleMapsSearchUrl } from "@/lib/maps";
 import {
   buildCalendarWeeks,
   eventEmojiOptions,
@@ -2141,6 +2142,8 @@ function EventDetailsModal({
   onRequestChange: () => void;
   onRequestRemove: () => void;
 }) {
+  const mapsUrl = buildGoogleMapsSearchUrl(event.location);
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-stone-950/45 px-3 py-4 sm:px-4 sm:py-8">
       <button type="button" aria-label="close" onClick={onClose} className="absolute inset-0 cursor-default" />
@@ -2206,6 +2209,19 @@ function EventDetailsModal({
               <Detail label="סוג בקשה" value={getRequestTypeLabel(event.requestType)} />
             ) : null}
           </div>
+
+          {mapsUrl ? (
+            <div className="mt-4">
+              <a
+                href={mapsUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-900 transition hover:bg-sky-100"
+              >
+                פתיחה במפות
+              </a>
+            </div>
+          ) : null}
 
           {event.notes ? (
             <div className="mt-5 rounded-2xl bg-stone-100 px-4 py-3 text-sm leading-7 text-stone-700">{event.notes}</div>
