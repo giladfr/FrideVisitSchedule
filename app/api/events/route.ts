@@ -51,7 +51,43 @@ function parseEventInput(payload: unknown) {
     segment: raw.segment,
     attendees,
     location: raw.location.trim(),
+    placeUrl:
+      typeof raw.placeUrl === "string" && raw.placeUrl.trim()
+        ? raw.placeUrl.trim()
+        : undefined,
     notes: typeof raw.notes === "string" ? raw.notes.trim() : undefined,
+    photos: Array.isArray(raw.photos)
+      ? raw.photos
+          .filter((value): value is Record<string, unknown> => Boolean(value) && typeof value === "object")
+          .map((photo) => ({
+            id: typeof photo.id === "string" && photo.id.trim() ? photo.id.trim() : `photo-${Date.now()}`,
+            url: typeof photo.url === "string" ? photo.url.trim() : "",
+            caption: typeof photo.caption === "string" && photo.caption.trim() ? photo.caption.trim() : undefined,
+            addedByName:
+              typeof photo.addedByName === "string" && photo.addedByName.trim()
+                ? photo.addedByName.trim()
+                : undefined,
+            createdAt:
+              typeof photo.createdAt === "string" && photo.createdAt.trim()
+                ? photo.createdAt.trim()
+                : new Date().toISOString(),
+          }))
+          .filter((photo) => photo.url)
+      : undefined,
+    comments: Array.isArray(raw.comments)
+      ? raw.comments
+          .filter((value): value is Record<string, unknown> => Boolean(value) && typeof value === "object")
+          .map((comment) => ({
+            id: typeof comment.id === "string" && comment.id.trim() ? comment.id.trim() : `comment-${Date.now()}`,
+            authorName: typeof comment.authorName === "string" ? comment.authorName.trim() : "",
+            text: typeof comment.text === "string" ? comment.text.trim() : "",
+            createdAt:
+              typeof comment.createdAt === "string" && comment.createdAt.trim()
+                ? comment.createdAt.trim()
+                : new Date().toISOString(),
+          }))
+          .filter((comment) => comment.authorName && comment.text)
+      : undefined,
     requestType:
       raw.requestType === "new" || raw.requestType === "change" || raw.requestType === "remove"
         ? raw.requestType

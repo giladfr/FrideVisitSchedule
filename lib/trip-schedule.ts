@@ -1,6 +1,21 @@
 export type PersonId = "gilad" | "yaara" | "kids";
 
 export type SegmentId = "morning" | "noon" | "evening" | "night";
+export type EventComment = {
+  id: string;
+  authorName: string;
+  text: string;
+  createdAt: string;
+};
+
+export type EventPhoto = {
+  id: string;
+  url: string;
+  caption?: string;
+  addedByName?: string;
+  createdAt: string;
+};
+
 export type Person = {
   id: PersonId;
   name: string;
@@ -18,7 +33,10 @@ export type TripEvent = {
   segment: SegmentId;
   attendees: PersonId[];
   location: string;
+  placeUrl?: string;
   notes?: string;
+  photos?: EventPhoto[];
+  comments?: EventComment[];
   status: "approved" | "pending" | "rejected";
   createdByRole: "admin" | "guest";
   suggestedByName?: string;

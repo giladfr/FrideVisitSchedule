@@ -18,6 +18,9 @@ Three-week Israel visit planner for June 3, 2026 through June 24, 2026.
 - non-admin visitors can suggest events for approval
 - non-admin visitors can request changes to an existing event
 - non-admin visitors can request removal of an existing event
+- anyone with the public link can comment on an event
+- anyone with the public link can share a photo link on an event
+- events support map actions and optional place links
 - pending suggestions show as tentative for the suggester's person-filtered view
 - admin can approve, edit, reject, drag, and delete events
 - Google Calendar sync is intentionally deferred until after the UI and data model settle
@@ -31,6 +34,8 @@ If you send the public site to relatives and close friends today, this is the cu
 - they can suggest new events
 - they can request a change to an existing event
 - they can request removal of an existing event
+- they can comment on events
+- they can share photo links on events
 - they cannot directly edit approved events themselves
 - they cannot directly delete events themselves
 - only the admin password unlocks real editing and deletion

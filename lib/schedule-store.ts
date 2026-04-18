@@ -1,6 +1,9 @@
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { fetchPlaceImagePreview } from "@/lib/place-preview";
 import {
   demoEvents,
+  type EventComment,
+  type EventPhoto,
   type PersonId,
   type SegmentId,
   type TripEvent,
@@ -36,7 +39,10 @@ export type EventMutationInput = {
   segment: SegmentId;
   attendees: PersonId[];
   location: string;
+  placeUrl?: string;
   notes?: string;
+  photos?: EventPhoto[];
+  comments?: EventComment[];
   suggestedByName?: string;
   suggestedByPerson?: PersonId;
   requestType?: TripEvent["requestType"];
@@ -48,6 +54,9 @@ type EventRequestMeta = {
   requestType?: TripEvent["requestType"];
   targetEventId?: string;
   viewerKey?: string;
+  placeUrl?: string;
+  photos?: EventPhoto[];
+  comments?: EventComment[];
 };
 
 const META_PREFIX = "<!--fride-meta:";
@@ -112,11 +121,14 @@ function mapRow(row: EventRow): TripEvent {
     segment: row.segment,
     attendees: row.attendees,
     location: row.location,
+    placeUrl: meta.placeUrl,
     status: row.status,
     createdByRole: row.created_by_role,
     suggestedByName: row.suggested_by_name ?? undefined,
     suggestedByPerson: row.suggested_by_person ?? undefined,
     notes: visibleNotes,
+    photos: meta.photos ?? [],
+    comments: meta.comments ?? [],
     requestType: meta.requestType ?? "new",
     targetEventId: meta.targetEventId,
     viewerKey: meta.viewerKey,
@@ -125,13 +137,28 @@ function mapRow(row: EventRow): TripEvent {
   };
 }
 
-function mapInput(
+async function mapInput(
   input: EventMutationInput,
   options: {
     status: TripEvent["status"];
     createdByRole: TripEvent["createdByRole"];
   },
 ) {
+  const normalizedPhotos = [...(input.photos ?? [])];
+  const normalizedPlaceUrl = input.placeUrl?.trim() || undefined;
+
+  if (normalizedPlaceUrl && normalizedPhotos.length === 0) {
+    const previewUrl = await fetchPlaceImagePreview(normalizedPlaceUrl);
+    if (previewUrl) {
+      normalizedPhotos.push({
+        id: `photo-${Date.now()}`,
+        url: previewUrl,
+        caption: "תמונה מהקישור",
+        createdAt: new Date().toISOString(),
+      });
+    }
+  }
+
   return {
     title: input.title,
     emoji: input.emoji?.trim() ? input.emoji.trim() : null,
@@ -143,6 +170,9 @@ function mapInput(
       requestType: input.requestType,
       targetEventId: input.targetEventId,
       viewerKey: input.viewerKey,
+      placeUrl: normalizedPlaceUrl,
+      photos: normalizedPhotos,
+      comments: input.comments ?? [],
     }),
     status: options.status,
     created_by_role: options.createdByRole,
@@ -240,10 +270,11 @@ export async function fetchScheduleSnapshot(options?: {
 
 export async function createSuggestedEvent(input: EventMutationInput) {
   const supabase = createSupabaseServerClient({ admin: true });
+  const row = await mapInput(input, { status: "pending", createdByRole: "guest" });
 
   const { data, error } = await supabase
     .from("visit_events")
-    .insert(mapInput(input, { status: "pending", createdByRole: "guest" }))
+    .insert(row)
     .select("*")
     .single();
 
@@ -256,10 +287,11 @@ export async function createSuggestedEvent(input: EventMutationInput) {
 
 export async function createAdminEvent(input: EventMutationInput) {
   const supabase = createSupabaseServerClient({ admin: true });
+  const row = await mapInput(input, { status: "approved", createdByRole: "admin" });
 
   const { data, error } = await supabase
     .from("visit_events")
-    .insert(mapInput(input, { status: "approved", createdByRole: "admin" }))
+    .insert(row)
     .select("*")
     .single();
 
@@ -272,14 +304,15 @@ export async function createAdminEvent(input: EventMutationInput) {
 
 export async function updateAdminEvent(eventId: string, input: EventMutationInput) {
   const supabase = createSupabaseServerClient({ admin: true });
+  const row = await mapInput(input, {
+    status: input.suggestedByName ? "pending" : "approved",
+    createdByRole: input.suggestedByName ? "guest" : "admin",
+  });
 
   const { data, error } = await supabase
     .from("visit_events")
     .update({
-      ...mapInput(input, {
-        status: input.suggestedByName ? "pending" : "approved",
-        createdByRole: input.suggestedByName ? "guest" : "admin",
-      }),
+      ...row,
       updated_at: new Date().toISOString(),
     })
     .eq("id", eventId)
@@ -360,7 +393,10 @@ export async function applyApprovedRequest(requestEventId: string) {
       segment: requestEvent.segment,
       attendees: requestEvent.attendees,
       location: requestEvent.location,
+      placeUrl: requestEvent.placeUrl,
       notes: requestEvent.notes,
+      photos: requestEvent.photos,
+      comments: requestEvent.comments,
     });
 
     await deleteAdminEvent(requestEventId);
@@ -387,6 +423,64 @@ export async function deleteAdminEvent(eventId: string) {
   if (error) {
     throw new Error(error.message);
   }
+}
+
+export async function addEventComment(eventId: string, comment: EventComment) {
+  const supabase = createSupabaseServerClient({ admin: true });
+  const event = await getAdminEvent(eventId);
+  const nextComments = [...(event.comments ?? []), comment];
+
+  const { data, error } = await supabase
+    .from("visit_events")
+    .update({
+      notes: packNotesPayload(event.notes, {
+        requestType: event.requestType,
+        targetEventId: event.targetEventId,
+        viewerKey: event.viewerKey,
+        placeUrl: event.placeUrl,
+        photos: event.photos ?? [],
+        comments: nextComments,
+      }),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", eventId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return mapRow(data as EventRow);
+}
+
+export async function addEventPhoto(eventId: string, photo: EventPhoto) {
+  const supabase = createSupabaseServerClient({ admin: true });
+  const event = await getAdminEvent(eventId);
+  const nextPhotos = [...(event.photos ?? []), photo];
+
+  const { data, error } = await supabase
+    .from("visit_events")
+    .update({
+      notes: packNotesPayload(event.notes, {
+        requestType: event.requestType,
+        targetEventId: event.targetEventId,
+        viewerKey: event.viewerKey,
+        placeUrl: event.placeUrl,
+        photos: nextPhotos,
+        comments: event.comments ?? [],
+      }),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", eventId)
+    .select("*")
+    .single();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return mapRow(data as EventRow);
 }
 
 export async function seedDemoEvents() {

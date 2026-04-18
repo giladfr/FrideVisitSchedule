@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-import { buildGoogleMapsSearchUrl } from "@/lib/maps";
+import { buildGoogleMapsSearchUrl, buildWazeSearchUrl } from "@/lib/maps";
 import {
   buildCalendarWeeks,
   eventEmojiOptions,
@@ -13,6 +13,8 @@ import {
   segmentTimes,
   tripWindow,
   type CalendarDay,
+  type EventComment,
+  type EventPhoto,
   type PersonId,
   type SegmentId,
   type TripEvent,
@@ -50,7 +52,10 @@ type EventDraft = {
   date: string;
   segment: SegmentId;
   location: string;
+  placeUrl: string;
   notes: string;
+  photos: EventPhoto[];
+  comments: EventComment[];
   attendees: PersonId[];
   suggestedByName: string;
   suggestedByPerson: PersonId;
@@ -102,7 +107,10 @@ function createDraft(
     date: event?.date ?? options.date,
     segment: event?.segment ?? options.segment,
     location: event?.location ?? "",
+    placeUrl: event?.placeUrl ?? "",
     notes: event?.notes ?? "",
+    photos: event?.photos ?? [],
+    comments: event?.comments ?? [],
     attendees: event?.attendees ?? [options.identity.personId],
     suggestedByName:
       mode === "suggest"
@@ -453,7 +461,10 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       date: draft.date,
       segment: draft.segment,
       location: draft.location,
+      placeUrl: draft.placeUrl,
       notes: draft.notes,
+      photos: draft.photos,
+      comments: draft.comments,
       attendees: draft.attendees,
       suggestedByName: editable ? existingEvent?.suggestedByName : draft.suggestedByName,
       suggestedByPerson: editable ? existingEvent?.suggestedByPerson : draft.suggestedByPerson,
@@ -574,7 +585,10 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
           date,
           segment,
           location: event.location,
+          placeUrl: event.placeUrl ?? "",
           notes: event.notes ?? "",
+          photos: event.photos ?? [],
+          comments: event.comments ?? [],
           attendees: event.attendees,
           suggestedByName: event.suggestedByName,
           suggestedByPerson: event.suggestedByPerson,
@@ -612,6 +626,65 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       setNotice("אירועי הדמו הועלו ל-Supabase.");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "טעינת הדמו נכשלה.");
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  async function handleAddComment(eventId: string, authorName: string, text: string) {
+    setActionPending(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "add-comment",
+          authorName,
+          text,
+        }),
+      });
+
+      const payload = await readJson<{ event?: TripEvent }>(response);
+      if (payload.event) {
+        setEvents((current) => sortEvents(current.map((item) => (item.id === eventId ? payload.event! : item))));
+      }
+      setNotice("התגובה נוספה.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "הוספת התגובה נכשלה.");
+    } finally {
+      setActionPending(false);
+    }
+  }
+
+  async function handleAddPhoto(eventId: string, authorName: string, url: string, caption: string) {
+    setActionPending(true);
+    setErrorMessage(null);
+
+    try {
+      const response = await fetch(`/api/events/${eventId}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          action: "add-photo",
+          authorName,
+          url,
+          caption,
+        }),
+      });
+
+      const payload = await readJson<{ event?: TripEvent }>(response);
+      if (payload.event) {
+        setEvents((current) => sortEvents(current.map((item) => (item.id === eventId ? payload.event! : item))));
+      }
+      setNotice("התמונה נוספה.");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "הוספת התמונה נכשלה.");
     } finally {
       setActionPending(false);
     }
@@ -1129,10 +1202,14 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
           event={selectedEvent}
           editable={editable}
           isEditing={isEditing}
+          actionPending={actionPending}
+          defaultName={viewerIdentity.name}
           onClose={() => setModalState(null)}
           onEdit={() => openEditEvent(selectedEvent)}
           onRequestChange={() => openChangeRequest(selectedEvent)}
           onRequestRemove={() => openRemoveRequest(selectedEvent)}
+          onAddComment={handleAddComment}
+          onAddPhoto={handleAddPhoto}
         />
       ) : null}
 
@@ -2129,20 +2206,53 @@ function EventDetailsModal({
   event,
   editable,
   isEditing,
+  actionPending,
+  defaultName,
   onClose,
   onEdit,
   onRequestChange,
   onRequestRemove,
+  onAddComment,
+  onAddPhoto,
 }: {
   event: TripEvent;
   editable: boolean;
   isEditing: boolean;
+  actionPending: boolean;
+  defaultName: string;
   onClose: () => void;
   onEdit: () => void;
   onRequestChange: () => void;
   onRequestRemove: () => void;
+  onAddComment: (eventId: string, authorName: string, text: string) => Promise<void>;
+  onAddPhoto: (eventId: string, authorName: string, url: string, caption: string) => Promise<void>;
 }) {
   const mapsUrl = buildGoogleMapsSearchUrl(event.location);
+  const wazeUrl = buildWazeSearchUrl(event.location);
+  const [commentAuthor, setCommentAuthor] = useState(defaultName);
+  const [commentText, setCommentText] = useState("");
+  const [photoAuthor, setPhotoAuthor] = useState(defaultName);
+  const [photoUrl, setPhotoUrl] = useState("");
+  const [photoCaption, setPhotoCaption] = useState("");
+
+  async function submitComment() {
+    if (!commentAuthor.trim() || !commentText.trim()) {
+      return;
+    }
+
+    await onAddComment(event.id, commentAuthor.trim(), commentText.trim());
+    setCommentText("");
+  }
+
+  async function submitPhoto() {
+    if (!photoUrl.trim()) {
+      return;
+    }
+
+    await onAddPhoto(event.id, photoAuthor.trim(), photoUrl.trim(), photoCaption.trim());
+    setPhotoUrl("");
+    setPhotoCaption("");
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-stone-950/45 px-3 py-4 sm:px-4 sm:py-8">
@@ -2210,22 +2320,161 @@ function EventDetailsModal({
             ) : null}
           </div>
 
-          {mapsUrl ? (
-            <div className="mt-4">
-              <a
-                href={mapsUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-900 transition hover:bg-sky-100"
-              >
-                פתיחה במפות
-              </a>
+          {mapsUrl || wazeUrl || event.placeUrl ? (
+            <div className="mt-4 flex flex-wrap gap-2">
+              {mapsUrl ? (
+                <a
+                  href={mapsUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-900 transition hover:bg-sky-100"
+                >
+                  Google Maps
+                </a>
+              ) : null}
+              {wazeUrl ? (
+                <a
+                  href={wazeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100"
+                >
+                  Waze
+                </a>
+              ) : null}
+              {event.placeUrl ? (
+                <a
+                  href={event.placeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 transition hover:bg-stone-100"
+                >
+                  קישור למקום
+                </a>
+              ) : null}
+            </div>
+          ) : null}
+
+          {event.photos && event.photos.length > 0 ? (
+            <div className="mt-5">
+              <p className="text-sm font-semibold text-stone-700">תמונות וקישורים חזותיים</p>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                {event.photos.map((photo) => (
+                  <a
+                    key={photo.id}
+                    href={photo.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="overflow-hidden rounded-[1.25rem] border border-stone-200 bg-stone-50"
+                  >
+                    <img
+                      src={photo.url}
+                      alt={photo.caption ?? event.title}
+                      className="h-40 w-full object-cover"
+                    />
+                    <div className="px-3 py-2 text-sm text-stone-700">
+                      {photo.caption ? <p className="font-medium text-stone-900">{photo.caption}</p> : null}
+                      {photo.addedByName ? <p className="mt-1 text-xs text-stone-500">נוסף על ידי {photo.addedByName}</p> : null}
+                    </div>
+                  </a>
+                ))}
+              </div>
             </div>
           ) : null}
 
           {event.notes ? (
             <div className="mt-5 rounded-2xl bg-stone-100 px-4 py-3 text-sm leading-7 text-stone-700">{event.notes}</div>
           ) : null}
+
+          <div className="mt-5 rounded-[1.5rem] border border-stone-200 bg-stone-50 p-4">
+            <p className="text-sm font-semibold text-stone-900">תגובות</p>
+            <div className="mt-3 space-y-3">
+              {event.comments && event.comments.length > 0 ? (
+                event.comments.map((comment) => (
+                  <div key={comment.id} className="rounded-[1.25rem] border border-stone-200 bg-white px-4 py-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-semibold text-stone-900">{comment.authorName}</p>
+                      <p className="text-xs text-stone-500">
+                        {new Intl.DateTimeFormat("he-IL", {
+                          day: "numeric",
+                          month: "short",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        }).format(new Date(comment.createdAt))}
+                      </p>
+                    </div>
+                    <p className="mt-2 text-sm leading-7 text-stone-700">{comment.text}</p>
+                  </div>
+                ))
+              ) : (
+                <div className="rounded-[1.25rem] border border-dashed border-stone-300 bg-white px-4 py-5 text-sm text-stone-500">
+                  עדיין אין תגובות לאירוע הזה.
+                </div>
+              )}
+            </div>
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-[180px_1fr]">
+              <input
+                value={commentAuthor}
+                onChange={(currentEvent) => setCommentAuthor(currentEvent.target.value)}
+                className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                placeholder="השם שלך"
+              />
+              <textarea
+                value={commentText}
+                onChange={(currentEvent) => setCommentText(currentEvent.target.value)}
+                rows={3}
+                className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                placeholder="אפשר להוסיף עדכון, הערה, או משהו שכדאי לזכור..."
+              />
+            </div>
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                disabled={actionPending || !commentAuthor.trim() || !commentText.trim()}
+                onClick={() => void submitComment()}
+                className="rounded-full bg-stone-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:opacity-60"
+              >
+                הוספת תגובה
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-5 rounded-[1.5rem] border border-stone-200 bg-stone-50 p-4">
+            <p className="text-sm font-semibold text-stone-900">שיתוף תמונה</p>
+            <div className="mt-3 grid gap-3">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <input
+                  value={photoAuthor}
+                  onChange={(currentEvent) => setPhotoAuthor(currentEvent.target.value)}
+                  className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                  placeholder="השם שלך"
+                />
+                <input
+                  value={photoCaption}
+                  onChange={(currentEvent) => setPhotoCaption(currentEvent.target.value)}
+                  className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                  placeholder="כיתוב קצר"
+                />
+              </div>
+              <input
+                value={photoUrl}
+                onChange={(currentEvent) => setPhotoUrl(currentEvent.target.value)}
+                className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                placeholder="קישור ישיר לתמונה"
+              />
+            </div>
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                disabled={actionPending || !photoUrl.trim()}
+                onClick={() => void submitPhoto()}
+                className="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 transition hover:bg-stone-100 disabled:opacity-60"
+              >
+                הוספת תמונה
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -2364,6 +2613,16 @@ function EventFormModal({
               />
             </Field>
 
+            <Field label="קישור למקום">
+              <input
+                value={formState.placeUrl}
+                onChange={(event) => setFormState((current) => ({ ...current, placeUrl: event.target.value }))}
+                disabled={mode === "remove"}
+                className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                placeholder="https://..."
+              />
+            </Field>
+
             <Field label="תאריך">
               <input
                 type="date"
@@ -2469,6 +2728,33 @@ function EventFormModal({
               />
             </Field>
           </div>
+
+          {mode === "admin" ? (
+            <div className="mt-4">
+              <Field label="קישורי תמונות (שורה נפרדת לכל תמונה)">
+                <textarea
+                  value={formState.photos.map((photo) => photo.url).join("\n")}
+                  onChange={(event) =>
+                    setFormState((current) => ({
+                      ...current,
+                      photos: event.target.value
+                        .split("\n")
+                        .map((url, index) => url.trim())
+                        .filter(Boolean)
+                        .map((url, index) => ({
+                          id: `photo-${index}-${Date.now()}`,
+                          url,
+                          createdAt: new Date().toISOString(),
+                        })),
+                    }))
+                  }
+                  rows={3}
+                  className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                  placeholder="https://example.com/image1.jpg"
+                />
+              </Field>
+            </div>
+          ) : null}
 
           <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
