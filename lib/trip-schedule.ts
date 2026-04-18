@@ -23,6 +23,9 @@ export type TripEvent = {
   createdByRole: "admin" | "guest";
   suggestedByName?: string;
   suggestedByPerson?: PersonId;
+  requestType?: "new" | "change" | "remove";
+  targetEventId?: string;
+  viewerKey?: string;
   createdAt?: string;
   updatedAt?: string;
 };

@@ -27,7 +27,7 @@
     position: relative;
     min-height: 100vh;
     color: var(--foreground);
-    font-family: var(--font-geist-sans), sans-serif;
+    font-family: "Noto Sans Hebrew", "Assistant", "Heebo", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: transparent;
   }
 

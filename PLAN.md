@@ -79,8 +79,10 @@ The project is live and usable as a shared family trip site for the June 3, 2026
 ### Suggestions and approval flow
 
 - non-admin users can suggest events
+- non-admin users can request changes to existing events
+- non-admin users can request removal of existing events
 - suggestion captures who suggested it
-- pending suggestions visible only where appropriate before approval
+- pending suggestions and requests visible only where appropriate before approval
 - admin can approve suggestions
 - admin can reject suggestions
 - admin can edit suggestions before approval
@@ -270,3 +272,21 @@ If development continues, the best next items are:
 2. Improve the admin editor into a faster side panel / drawer workflow
 3. Add optional comments on approval/rejection
 4. Revisit Google Calendar import only after the above polish is done
+
+## Sharing Recommendation
+
+For sending the live link to relatives and close friends, the current product is already viable if the intended workflow is:
+
+- everyone can view
+- relatives can suggest additions
+- only the organizer can make final changes
+
+That is the safest version of this product.
+
+If you want relatives to do more than suggest, the next feature should not be full direct deletion. The better path is:
+
+1. Let them request a change to an existing event
+2. Let them request removal of an event
+3. Send those requests into the same pending approval flow
+
+That keeps the calendar stable while still making collaboration easy.

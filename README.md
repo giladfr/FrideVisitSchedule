@@ -16,9 +16,26 @@ Three-week Israel visit planner for June 3, 2026 through June 24, 2026.
 - only one admin password is needed for editing mode
 - no usernames and no full user auth system yet
 - non-admin visitors can suggest events for approval
+- non-admin visitors can request changes to an existing event
+- non-admin visitors can request removal of an existing event
 - pending suggestions show as tentative for the suggester's person-filtered view
 - admin can approve, edit, reject, drag, and delete events
 - Google Calendar sync is intentionally deferred until after the UI and data model settle
+
+## Ready-to-share summary
+
+If you send the public site to relatives and close friends today, this is the current behavior:
+
+- they can view the full schedule
+- they can filter by family member
+- they can suggest new events
+- they can request a change to an existing event
+- they can request removal of an existing event
+- they cannot directly edit approved events themselves
+- they cannot directly delete events themselves
+- only the admin password unlocks real editing and deletion
+
+This is a good default for a family trip site because it keeps the public link simple while still protecting the schedule from accidental changes.
 
 ## Environment variables
 
@@ -119,6 +136,23 @@ Valid `segment` values:
 - `noon`
 - `evening`
 - `night`
+
+## Recommendation before sharing widely
+
+The current app is good enough to share with relatives now if your goal is:
+
+- let everyone see the trip
+- let people suggest additions
+- keep final control in one place
+
+Before relying on it heavily, the most useful next improvements would be:
+
+1. Add map links from event locations
+2. Add admin comments on approval or rejection so people understand what happened
+3. Add a clearer public note explaining that public users submit suggestions and requests and the admin confirms them
+4. Add a more structured identity model if you eventually want the same relative to use multiple devices without ambiguity
+
+I would not recommend letting relatives directly delete events without a stronger permission model.
 
 ## Supabase setup
 

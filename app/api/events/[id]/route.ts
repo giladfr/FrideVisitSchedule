@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { ADMIN_COOKIE_NAME, isAdminSessionValid } from "@/lib/admin-auth";
 import {
+  applyApprovedRequest,
   deleteAdminEvent,
   setAdminEventStatus,
   updateAdminEvent,
@@ -46,6 +47,16 @@ function parseEventInput(payload: unknown) {
     attendees,
     location: raw.location.trim(),
     notes: typeof raw.notes === "string" ? raw.notes.trim() : undefined,
+    requestType:
+      raw.requestType === "new" || raw.requestType === "change" || raw.requestType === "remove"
+        ? raw.requestType
+        : undefined,
+    targetEventId: typeof raw.targetEventId === "string" && raw.targetEventId.trim()
+      ? raw.targetEventId.trim()
+      : undefined,
+    viewerKey: typeof raw.viewerKey === "string" && raw.viewerKey.trim()
+      ? raw.viewerKey.trim()
+      : undefined,
   };
 
   if (typeof raw.suggestedByName === "string" && raw.suggestedByName.trim()) {
@@ -81,6 +92,11 @@ export async function PATCH(
   try {
     const { id } = await params;
     const payload = (await request.json()) as Record<string, unknown>;
+
+    if (payload.action === "approve-request") {
+      const result = await applyApprovedRequest(id);
+      return NextResponse.json({ result });
+    }
 
     if (payload.action === "set-status") {
       const status = payload.status;

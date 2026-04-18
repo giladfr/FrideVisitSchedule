@@ -52,6 +52,16 @@ function parseEventInput(payload: unknown) {
     attendees,
     location: raw.location.trim(),
     notes: typeof raw.notes === "string" ? raw.notes.trim() : undefined,
+    requestType:
+      raw.requestType === "new" || raw.requestType === "change" || raw.requestType === "remove"
+        ? raw.requestType
+        : undefined,
+    targetEventId: typeof raw.targetEventId === "string" && raw.targetEventId.trim()
+      ? raw.targetEventId.trim()
+      : undefined,
+    viewerKey: typeof raw.viewerKey === "string" && raw.viewerKey.trim()
+      ? raw.viewerKey.trim()
+      : undefined,
   };
 
   if (!input.title || !input.location) {
@@ -73,6 +83,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const viewerName = searchParams.get("viewerName")?.trim() || undefined;
+    const viewerKey = searchParams.get("viewerKey")?.trim() || undefined;
     const cookieHeader = request.headers.get("cookie") ?? "";
     const cookieValue = cookieHeader
       .split(";")
@@ -84,6 +95,7 @@ export async function GET(request: Request) {
     const snapshot = await fetchScheduleSnapshot({
       admin: isAdmin,
       viewerName: isAdmin ? undefined : viewerName,
+      viewerKey: isAdmin ? undefined : viewerKey,
     });
 
     return NextResponse.json(snapshot);

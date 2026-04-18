@@ -24,6 +24,7 @@ type ScheduleBoardProps = {
 type FilterValue = "all" | PersonId;
 type ViewMode = "weeks" | "day" | "trip" | "mobileWeek";
 type ViewerIdentity = {
+  key: string;
   name: string;
   personId: PersonId;
 };
@@ -33,7 +34,14 @@ type DropTarget = {
 };
 type ModalState =
   | { type: "details"; eventId: string }
-  | { type: "form"; mode: "admin" | "suggest"; event?: TripEvent; date: string; segment: SegmentId }
+  | {
+      type: "form";
+      mode: "admin" | "suggest" | "change" | "remove";
+      event?: TripEvent;
+      date: string;
+      segment: SegmentId;
+      targetEvent?: TripEvent;
+    }
   | null;
 type EventDraft = {
   title: string;
@@ -45,6 +53,9 @@ type EventDraft = {
   attendees: PersonId[];
   suggestedByName: string;
   suggestedByPerson: PersonId;
+  requestType: "new" | "change" | "remove";
+  targetEventId?: string;
+  viewerKey: string;
 };
 type SnapshotResponse = {
   events: TripEvent[];
@@ -61,21 +72,28 @@ type CalendarWeek = ReturnType<typeof buildCalendarWeeks>[number];
 
 function defaultIdentity(): ViewerIdentity {
   return {
+    key:
+      typeof crypto !== "undefined" && "randomUUID" in crypto
+        ? crypto.randomUUID()
+        : `viewer-${Date.now()}`,
     name: "",
     personId: "gilad",
   };
 }
 
 function createDraft(
-  mode: "admin" | "suggest",
+  mode: "admin" | "suggest" | "change" | "remove",
   options: {
     date: string;
     segment: SegmentId;
     identity: ViewerIdentity;
     event?: TripEvent;
+    targetEvent?: TripEvent;
   },
 ): EventDraft {
-  const event = options.event;
+  const event = options.event ?? options.targetEvent;
+  const requestType =
+    mode === "change" ? "change" : mode === "remove" ? "remove" : "new";
 
   return {
     title: event?.title ?? "",
@@ -93,7 +111,26 @@ function createDraft(
       mode === "suggest"
         ? event?.suggestedByPerson ?? options.identity.personId
         : event?.suggestedByPerson ?? options.identity.personId,
+    requestType,
+    targetEventId: options.targetEvent?.id,
+    viewerKey: options.identity.key,
   };
+}
+
+function getRequestTypeLabel(requestType: TripEvent["requestType"]) {
+  if (requestType === "change") {
+    return "בקשת שינוי";
+  }
+
+  if (requestType === "remove") {
+    return "בקשת הסרה";
+  }
+
+  return "הצעה חדשה";
+}
+
+function isRequestEvent(event: TripEvent) {
+  return event.requestType === "change" || event.requestType === "remove";
 }
 
 function formatDateLabel(date: string) {
@@ -132,7 +169,11 @@ function sortEvents(events: TripEvent[]) {
 
 function buildConflictMap(events: TripEvent[]) {
   const conflicts = new Set<string>();
-  const activeEvents = events.filter((event) => event.status !== "rejected");
+  const activeEvents = events.filter(
+    (event) =>
+      event.status !== "rejected" &&
+      (event.status === "approved" || event.requestType === "new" || !event.requestType),
+  );
 
   for (let index = 0; index < activeEvents.length; index += 1) {
     const left = activeEvents[index];
@@ -191,6 +232,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
   const [events, setEvents] = useState<TripEvent[]>([]);
   const [modalState, setModalState] = useState<ModalState>(null);
   const [viewerIdentity, setViewerIdentity] = useState<ViewerIdentity>(defaultIdentity);
+  const [identityReady, setIdentityReady] = useState(editable);
   const [isEditing, setIsEditing] = useState(editable);
   const [draggedEventId, setDraggedEventId] = useState<string | null>(null);
   const [dropTarget, setDropTarget] = useState<DropTarget | null>(null);
@@ -203,6 +245,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
 
   useEffect(() => {
     if (editable) {
+      setIdentityReady(true);
       return;
     }
 
@@ -213,22 +256,40 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
 
     try {
       const parsed = JSON.parse(raw) as ViewerIdentity;
-      if (parsed.name && parsed.personId) {
-        setViewerIdentity(parsed);
-        setSelectedFilter(parsed.personId);
+      if (parsed.personId) {
+        const nextIdentity = {
+          ...defaultIdentity(),
+          ...parsed,
+        };
+        setViewerIdentity(nextIdentity);
+        if (nextIdentity.name) {
+          setSelectedFilter(nextIdentity.personId);
+        }
       }
     } catch {
       window.localStorage.removeItem(IDENTITY_STORAGE_KEY);
     }
+
+    setIdentityReady(true);
   }, [editable]);
 
   useEffect(() => {
-    if (editable || !viewerIdentity.name.trim()) {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (window.innerWidth < 640) {
+      setViewMode("mobileWeek");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (editable || !identityReady) {
       return;
     }
 
     window.localStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(viewerIdentity));
-  }, [editable, viewerIdentity]);
+  }, [editable, identityReady, viewerIdentity]);
 
   const refreshSchedule = useCallback(async (identityName?: string) => {
     setLoading(true);
@@ -237,7 +298,9 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
     try {
       const params =
         !editable && identityName?.trim()
-          ? `?viewerName=${encodeURIComponent(identityName.trim())}`
+          ? `?viewerName=${encodeURIComponent(identityName.trim())}&viewerKey=${encodeURIComponent(
+              viewerIdentity.key,
+            )}`
           : "";
       const response = await fetch(`/api/events${params}`, { cache: "no-store" });
       const payload = await readJson<SnapshotResponse>(response);
@@ -249,11 +312,11 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
     } finally {
       setLoading(false);
     }
-  }, [editable]);
+  }, [editable, viewerIdentity.key]);
 
   useEffect(() => {
     void refreshSchedule(editable ? undefined : viewerIdentity.name);
-  }, [editable, refreshSchedule, viewerIdentity.name]);
+  }, [editable, refreshSchedule, viewerIdentity.key, viewerIdentity.name]);
 
   const selectedEvent = useMemo(() => {
     if (modalState?.type !== "details") {
@@ -329,6 +392,28 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
     });
   }
 
+  function openChangeRequest(event: TripEvent) {
+    setSelectedDay(event.date);
+    setModalState({
+      type: "form",
+      mode: "change",
+      date: event.date,
+      segment: event.segment,
+      targetEvent: event,
+    });
+  }
+
+  function openRemoveRequest(event: TripEvent) {
+    setSelectedDay(event.date);
+    setModalState({
+      type: "form",
+      mode: "remove",
+      date: event.date,
+      segment: event.segment,
+      targetEvent: event,
+    });
+  }
+
   async function patchEvent(
     eventId: string,
     payload: Record<string, unknown>,
@@ -371,6 +456,9 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       attendees: draft.attendees,
       suggestedByName: editable ? existingEvent?.suggestedByName : draft.suggestedByName,
       suggestedByPerson: editable ? existingEvent?.suggestedByPerson : draft.suggestedByPerson,
+      requestType: draft.requestType,
+      targetEventId: draft.targetEventId,
+      viewerKey: draft.viewerKey,
     };
 
     try {
@@ -386,6 +474,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
 
       if (!editable) {
         const nextIdentity = {
+          key: draft.viewerKey,
           name: draft.suggestedByName,
           personId: draft.suggestedByPerson,
         };
@@ -395,7 +484,15 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       }
 
       await refreshSchedule(editable ? undefined : draft.suggestedByName);
-      setNotice(editable ? "האירוע נשמר." : "ההצעה נשלחה לאישור האדמין.");
+      setNotice(
+        editable
+          ? "האירוע נשמר."
+          : draft.requestType === "change"
+            ? "בקשת השינוי נשלחה לאישור."
+            : draft.requestType === "remove"
+              ? "בקשת ההסרה נשלחה לאישור."
+              : "ההצעה נשלחה לאישור האדמין.",
+      );
       setModalState(null);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "שמירת האירוע נכשלה.");
@@ -424,6 +521,20 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
   }
 
   async function handleDecision(eventId: string, status: "approved" | "rejected") {
+    const pendingEvent = events.find((event) => event.id === eventId);
+    if (!pendingEvent) {
+      return;
+    }
+
+    if (status === "approved" && isRequestEvent(pendingEvent)) {
+      await patchEvent(
+        eventId,
+        { action: "approve-request" },
+        pendingEvent.requestType === "remove" ? "בקשת ההסרה אושרה." : "בקשת השינוי אושרה.",
+      );
+      return;
+    }
+
     await patchEvent(
       eventId,
       { action: "set-status", status },
@@ -625,12 +736,16 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
           </div>
 
           {!editable ? (
-            <div className="flex flex-col gap-3 rounded-[1.25rem] border border-stone-200 bg-white/80 p-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex flex-col gap-3 rounded-[1.25rem] border border-stone-200 bg-white/85 p-4 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="font-semibold text-stone-900">רוצים להוסיף משהו ללוח?</p>
                 <p className="mt-1 text-sm text-stone-600">
-                  אפשר להזדהות בשם ובבן המשפחה הרלוונטי, להציע אירוע חדש, ולראות אחר כך את
-                  ההצעות שמחכות לאישור.
+                  אפשר להזדהות פעם אחת, להציע אירוע חדש, או לבקש שינוי או הסרה של אירוע
+                  קיים. כל הבקשות מגיעות לאישור לפני שהלוח מתעדכן.
+                </p>
+                <p className="mt-1 text-sm text-stone-500">
+                  רוצים לשנות משהו קיים? לחצו על האירוע עצמו ומשם אפשר לשלוח בקשת שינוי או
+                  הסרה.
                 </p>
               </div>
 
@@ -924,8 +1039,16 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                         {formatDateLabel(event.date)} · {segmentLabels[event.segment]}
                       </p>
                       <p className="mt-1 text-sm text-stone-600">
-                        הוצע על ידי {event.suggestedByName} עבור {getPerson(event.suggestedByPerson ?? "gilad").name}
+                        {getRequestTypeLabel(event.requestType)} מאת {event.suggestedByName} עבור{" "}
+                        {getPerson(event.suggestedByPerson ?? "gilad").name}
                       </p>
+                      {event.targetEventId ? (
+                        <p className="mt-1 text-sm text-stone-500">
+                          מתייחס ל:{" "}
+                          {events.find((candidate) => candidate.id === event.targetEventId)?.title ??
+                            "אירוע קיים"}
+                        </p>
+                      ) : null}
                       <div className="mt-3 flex flex-wrap gap-2">
                         <button
                           type="button"
@@ -933,7 +1056,11 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                           onClick={() => handleDecision(event.id, "approved")}
                           className="rounded-full bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:opacity-60"
                         >
-                          אישור
+                          {event.requestType === "remove"
+                            ? "אישור הסרה"
+                            : event.requestType === "change"
+                              ? "אישור שינוי"
+                              : "אישור"}
                         </button>
                         <button
                           type="button"
@@ -1003,6 +1130,8 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
           isEditing={isEditing}
           onClose={() => setModalState(null)}
           onEdit={() => openEditEvent(selectedEvent)}
+          onRequestChange={() => openChangeRequest(selectedEvent)}
+          onRequestRemove={() => openRemoveRequest(selectedEvent)}
         />
       ) : null}
 
@@ -1016,6 +1145,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
             event: modalState.event,
           })}
           existingEvent={modalState.event}
+          targetEvent={modalState.targetEvent}
           saving={actionPending}
           onClose={() => setModalState(null)}
           onSave={handleSaveEvent}
@@ -1764,6 +1894,11 @@ function EventCard({
           <div className="flex items-center justify-end gap-1.5">
             {event.emoji ? <span className="text-base leading-none">{event.emoji}</span> : null}
             <AttendeeMarkers attendees={event.attendees} compact />
+            {event.requestType && event.requestType !== "new" ? (
+              <span className="rounded-full bg-stone-100 px-1.5 py-0.5 text-[10px] font-semibold text-stone-700">
+                {getRequestTypeLabel(event.requestType)}
+              </span>
+            ) : null}
             {event.status !== "approved" ? (
               <span
                 className={`rounded-full font-semibold ${
@@ -1798,7 +1933,11 @@ function EventCard({
             {event.location} · {segmentLabels[event.segment]}
           </p>
           {event.suggestedByName ? (
-            <p className="mt-0.5 text-[11px] text-stone-500">הציע/ה: {event.suggestedByName}</p>
+            <p className="mt-0.5 text-[11px] text-stone-500">
+              {event.requestType && event.requestType !== "new"
+                ? `${getRequestTypeLabel(event.requestType)}: ${event.suggestedByName}`
+                : `הציע/ה: ${event.suggestedByName}`}
+            </p>
           ) : null}
         </div>
       ) : (
@@ -1808,6 +1947,11 @@ function EventCard({
               <div className="flex flex-wrap items-center gap-2">
                 {event.emoji ? <span className="text-lg leading-none">{event.emoji}</span> : null}
                 <p className="text-base font-semibold leading-7 text-stone-900">{event.title}</p>
+                {event.requestType && event.requestType !== "new" ? (
+                  <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-semibold text-stone-700">
+                    {getRequestTypeLabel(event.requestType)}
+                  </span>
+                ) : null}
                 {event.status !== "approved" ? (
                   <span
                     className={`rounded-full font-semibold px-2 py-0.5 text-[11px] ${
@@ -1828,7 +1972,11 @@ function EventCard({
               <p className="mt-1 text-sm text-stone-600">{event.location}</p>
               <p className="mt-1 text-xs font-medium text-stone-500">{segmentLabels[event.segment]}</p>
               {event.suggestedByName ? (
-                <p className="mt-1 text-xs text-stone-500">הציע/ה: {event.suggestedByName}</p>
+                <p className="mt-1 text-xs text-stone-500">
+                  {event.requestType && event.requestType !== "new"
+                    ? `${getRequestTypeLabel(event.requestType)}: ${event.suggestedByName}`
+                    : `הציע/ה: ${event.suggestedByName}`}
+                </p>
               ) : null}
             </div>
             <AttendeeMarkers attendees={event.attendees} compact={false} />
@@ -1982,12 +2130,16 @@ function EventDetailsModal({
   isEditing,
   onClose,
   onEdit,
+  onRequestChange,
+  onRequestRemove,
 }: {
   event: TripEvent;
   editable: boolean;
   isEditing: boolean;
   onClose: () => void;
   onEdit: () => void;
+  onRequestChange: () => void;
+  onRequestRemove: () => void;
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-stone-950/45 px-3 py-4 sm:px-4 sm:py-8">
@@ -2004,7 +2156,7 @@ function EventDetailsModal({
               <span>{event.title}</span>
             </h2>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap justify-end gap-2">
             {editable && isEditing ? (
               <button
                 type="button"
@@ -2013,6 +2165,24 @@ function EventDetailsModal({
               >
                 עריכה
               </button>
+            ) : null}
+            {!editable && event.status === "approved" ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onRequestChange}
+                  className="rounded-full border border-stone-300 px-3 py-1.5 text-sm font-semibold text-stone-700 transition hover:bg-stone-100"
+                >
+                  בקשת שינוי
+                </button>
+                <button
+                  type="button"
+                  onClick={onRequestRemove}
+                  className="rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-semibold text-rose-900 transition hover:bg-rose-100"
+                >
+                  בקשת הסרה
+                </button>
+              </>
             ) : null}
             <button
               type="button"
@@ -2032,6 +2202,9 @@ function EventDetailsModal({
             <Detail label="סטטוס" value={event.status === "approved" ? "מאושר" : event.status === "pending" ? "ממתין לאישור" : "נדחה"} />
             <Detail label="משתתפים" value={event.attendees.map((personId) => getPerson(personId).name).join(", ")} />
             <Detail label="הוצע על ידי" value={event.suggestedByName ?? "אדמין"} />
+            {event.requestType && event.requestType !== "new" ? (
+              <Detail label="סוג בקשה" value={getRequestTypeLabel(event.requestType)} />
+            ) : null}
           </div>
 
           {event.notes ? (
@@ -2047,14 +2220,16 @@ function EventFormModal({
   mode,
   draft,
   existingEvent,
+  targetEvent,
   saving,
   onClose,
   onSave,
   onDelete,
 }: {
-  mode: "admin" | "suggest";
+  mode: "admin" | "suggest" | "change" | "remove";
   draft: EventDraft;
   existingEvent?: TripEvent;
+  targetEvent?: TripEvent;
   saving: boolean;
   onClose: () => void;
   onSave: (draft: EventDraft, existingEvent?: TripEvent) => Promise<void>;
@@ -2086,14 +2261,26 @@ function EventFormModal({
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 rounded-t-[1.75rem] border-b border-stone-200 bg-white px-4 py-4 sm:rounded-t-[2rem] sm:px-6">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
-              {mode === "admin" ? (existingEvent ? "עריכת אירוע" : "יצירת אירוע") : "הצעת אירוע"}
+              {mode === "admin"
+                ? existingEvent
+                  ? "עריכת אירוע"
+                  : "יצירת אירוע"
+                : mode === "change"
+                  ? "בקשת שינוי"
+                  : mode === "remove"
+                    ? "בקשת הסרה"
+                    : "הצעת אירוע"}
             </p>
             <h2 className="mt-2 text-3xl font-semibold text-stone-950">
               {existingEvent
                 ? `${existingEvent.emoji ? `${existingEvent.emoji} ` : ""}${existingEvent.title}`
                 : mode === "admin"
                   ? "אירוע חדש בלוח"
-                  : "הצעה חדשה לאדמין"}
+                  : mode === "change"
+                    ? "איזה שינוי תרצו לבקש?"
+                    : mode === "remove"
+                      ? "בקשה להסרת אירוע"
+                      : "הצעה חדשה לאדמין"}
             </h2>
           </div>
           <button
@@ -2106,11 +2293,23 @@ function EventFormModal({
         </div>
 
         <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto px-4 py-5 sm:px-6">
+          {mode !== "admin" && targetEvent ? (
+            <div className="mb-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700">
+              <p className="font-semibold text-stone-900">האירוע המקורי</p>
+              <p className="mt-1">
+                {targetEvent.emoji ? `${targetEvent.emoji} ` : ""}
+                {targetEvent.title} · {formatDateLabel(targetEvent.date)} · {segmentLabels[targetEvent.segment]}
+              </p>
+              <p className="mt-1 text-stone-600">{targetEvent.location}</p>
+            </div>
+          ) : null}
+
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="כותרת">
               <input
                 value={formState.title}
                 onChange={(event) => setFormState((current) => ({ ...current, title: event.target.value }))}
+                disabled={mode === "remove"}
                 className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
                 placeholder="למשל ארוחת ערב משפחתית"
               />
@@ -2124,6 +2323,7 @@ function EventFormModal({
                     <button
                       key={emoji}
                       type="button"
+                      disabled={mode === "remove"}
                       onClick={() => setFormState((current) => ({ ...current, emoji }))}
                       className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-xl transition ${
                         active
@@ -2142,6 +2342,7 @@ function EventFormModal({
               <input
                 value={formState.location}
                 onChange={(event) => setFormState((current) => ({ ...current, location: event.target.value }))}
+                disabled={mode === "remove"}
                 className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
                 placeholder="למשל ירושלים"
               />
@@ -2152,6 +2353,7 @@ function EventFormModal({
                 type="date"
                 value={formState.date}
                 onChange={(event) => setFormState((current) => ({ ...current, date: event.target.value }))}
+                disabled={mode === "remove"}
                 className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
               />
             </Field>
@@ -2162,6 +2364,7 @@ function EventFormModal({
                 onChange={(event) =>
                   setFormState((current) => ({ ...current, segment: event.target.value as SegmentId }))
                 }
+                disabled={mode === "remove"}
                 className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
               >
                 {segments.map((segment) => (
@@ -2216,6 +2419,7 @@ function EventFormModal({
                     <button
                       key={person.id}
                       type="button"
+                      disabled={mode === "remove"}
                       onClick={() => toggleAttendee(person.id)}
                     className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${
                       active
@@ -2235,13 +2439,17 @@ function EventFormModal({
           </div>
 
           <div className="mt-4">
-            <Field label="הערות">
+            <Field label={mode === "remove" ? "למה להסיר?" : "הערות"}>
               <textarea
                 value={formState.notes}
                 onChange={(event) => setFormState((current) => ({ ...current, notes: event.target.value }))}
                 rows={4}
                 className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
-                placeholder="פרטים נוספים, כתובת מלאה, תזכורת, מה להביא..."
+                placeholder={
+                  mode === "remove"
+                    ? "למשל האירוע בוטל, לא רלוונטי יותר, או הוחלט לוותר עליו"
+                    : "פרטים נוספים, כתובת מלאה, תזכורת, מה להביא..."
+                }
               />
             </Field>
           </div>
@@ -2274,7 +2482,13 @@ function EventFormModal({
                 onClick={() => void onSave(formState, existingEvent)}
                 className="rounded-full bg-stone-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-800 disabled:opacity-60"
               >
-                {mode === "admin" ? "שמירת אירוע" : "שליחת הצעה"}
+                {mode === "admin"
+                  ? "שמירת אירוע"
+                  : mode === "change"
+                    ? "שליחת בקשת שינוי"
+                    : mode === "remove"
+                      ? "שליחת בקשת הסרה"
+                      : "שליחת הצעה"}
               </button>
             </div>
           </div>
