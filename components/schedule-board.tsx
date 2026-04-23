@@ -483,6 +483,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       });
 
       await readJson<{ event?: TripEvent }>(response);
+      setModalState(null);
 
       if (!editable) {
         const nextIdentity = {
@@ -505,7 +506,6 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
               ? "בקשת ההסרה נשלחה לאישור."
               : "ההצעה נשלחה לאישור האדמין.",
       );
-      setModalState(null);
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "שמירת האירוע נכשלה.");
     } finally {
@@ -2254,6 +2254,17 @@ function EventDetailsModal({
     setPhotoCaption("");
   }
 
+  useEffect(() => {
+    function handleKeyDown(keyboardEvent: KeyboardEvent) {
+      if (keyboardEvent.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-stone-950/45 px-3 py-4 sm:px-4 sm:py-8">
       <button type="button" aria-label="close" onClick={onClose} className="absolute inset-0 cursor-default" />
@@ -2501,6 +2512,7 @@ function EventFormModal({
   onDelete?: () => Promise<void>;
 }) {
   const [formState, setFormState] = useState<EventDraft>(draft);
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   function toggleAttendee(personId: PersonId) {
     setFormState((current) => {
@@ -2515,6 +2527,17 @@ function EventFormModal({
       };
     });
   }
+
+  useEffect(() => {
+    function handleKeyDown(keyboardEvent: KeyboardEvent) {
+      if (keyboardEvent.key === "Escape") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-stone-950/45 px-3 py-4 sm:px-4 sm:py-8">
@@ -2557,7 +2580,7 @@ function EventFormModal({
           </button>
         </div>
 
-        <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto px-4 py-5 sm:px-6">
+        <div className="max-h-[min(88dvh,820px)] overflow-y-auto px-4 py-4 sm:px-6">
           {mode !== "admin" && targetEvent ? (
             <div className="mb-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-sm text-stone-700">
               <p className="font-semibold text-stone-900">האירוע המקורי</p>
@@ -2590,7 +2613,7 @@ function EventFormModal({
                       type="button"
                       disabled={mode === "remove"}
                       onClick={() => setFormState((current) => ({ ...current, emoji }))}
-                      className={`flex h-11 w-11 items-center justify-center rounded-2xl border text-xl transition ${
+                      className={`flex h-10 w-10 items-center justify-center rounded-2xl border text-lg transition ${
                         active
                           ? "border-stone-950 bg-stone-950 text-white"
                           : "border-stone-200 bg-white hover:border-stone-400"
@@ -2610,16 +2633,6 @@ function EventFormModal({
                 disabled={mode === "remove"}
                 className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
                 placeholder="למשל ירושלים"
-              />
-            </Field>
-
-            <Field label="קישור למקום">
-              <input
-                value={formState.placeUrl}
-                onChange={(event) => setFormState((current) => ({ ...current, placeUrl: event.target.value }))}
-                disabled={mode === "remove"}
-                className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
-                placeholder="https://..."
               />
             </Field>
 
@@ -2718,7 +2731,7 @@ function EventFormModal({
               <textarea
                 value={formState.notes}
                 onChange={(event) => setFormState((current) => ({ ...current, notes: event.target.value }))}
-                rows={4}
+                rows={3}
                 className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
                 placeholder={
                   mode === "remove"
@@ -2730,29 +2743,51 @@ function EventFormModal({
           </div>
 
           {mode === "admin" ? (
-            <div className="mt-4">
-              <Field label="קישורי תמונות (שורה נפרדת לכל תמונה)">
-                <textarea
-                  value={formState.photos.map((photo) => photo.url).join("\n")}
-                  onChange={(event) =>
-                    setFormState((current) => ({
-                      ...current,
-                      photos: event.target.value
-                        .split("\n")
-                        .map((url, index) => url.trim())
-                        .filter(Boolean)
-                        .map((url, index) => ({
-                          id: `photo-${index}-${Date.now()}`,
-                          url,
-                          createdAt: new Date().toISOString(),
-                        })),
-                    }))
-                  }
-                  rows={3}
-                  className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
-                  placeholder="https://example.com/image1.jpg"
-                />
-              </Field>
+            <div className="mt-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced((current) => !current)}
+                className="flex w-full items-center justify-between text-right text-sm font-semibold text-stone-800"
+              >
+                <span>אפשרויות מתקדמות</span>
+                <span>{showAdvanced ? "−" : "+"}</span>
+              </button>
+
+              {showAdvanced ? (
+                <div className="mt-4 space-y-4">
+                  <Field label="קישור למקום">
+                    <input
+                      value={formState.placeUrl}
+                      onChange={(event) => setFormState((current) => ({ ...current, placeUrl: event.target.value }))}
+                      className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                      placeholder="https://..."
+                    />
+                  </Field>
+
+                  <Field label="קישורי תמונות (שורה נפרדת לכל תמונה)">
+                    <textarea
+                      value={formState.photos.map((photo) => photo.url).join("\n")}
+                      onChange={(event) =>
+                        setFormState((current) => ({
+                          ...current,
+                          photos: event.target.value
+                            .split("\n")
+                            .map((url) => url.trim())
+                            .filter(Boolean)
+                            .map((url, index) => ({
+                              id: `photo-${index}-${Date.now()}`,
+                              url,
+                              createdAt: new Date().toISOString(),
+                            })),
+                        }))
+                      }
+                      rows={3}
+                      className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                      placeholder="https://example.com/image1.jpg"
+                    />
+                  </Field>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
