@@ -33,22 +33,26 @@ function parseEventInput(payload: unknown) {
     ? raw.attendees.filter((value): value is PersonId => typeof value === "string" && isPersonId(value))
     : [];
 
-  if (
-    typeof raw.title !== "string" ||
-    typeof raw.date !== "string" ||
-    typeof raw.segment !== "string" ||
-    typeof raw.location !== "string" ||
-    !isSegment(raw.segment) ||
-    attendees.length === 0
-  ) {
+  if (typeof raw.title !== "string" || typeof raw.location !== "string" || attendees.length === 0) {
     throw new Error("Missing required event fields.");
+  }
+
+  const date =
+    typeof raw.date === "string" && raw.date.trim() ? raw.date.trim() : null;
+  const segment =
+    typeof raw.segment === "string" && raw.segment.trim()
+      ? raw.segment.trim()
+      : null;
+
+  if ((date && !segment) || (!date && segment) || (segment && !isSegment(segment))) {
+    throw new Error("Date and time segment must either both be set or both be empty.");
   }
 
   const input: EventMutationInput = {
     title: raw.title.trim(),
     emoji: typeof raw.emoji === "string" ? raw.emoji.trim() : undefined,
-    date: raw.date,
-    segment: raw.segment,
+    date,
+    segment: segment as SegmentId | null,
     attendees,
     location: raw.location.trim(),
     placeUrl:
@@ -118,8 +122,6 @@ function parseEventInput(payload: unknown) {
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const viewerName = searchParams.get("viewerName")?.trim() || undefined;
-    const viewerKey = searchParams.get("viewerKey")?.trim() || undefined;
     const cookieHeader = request.headers.get("cookie") ?? "";
     const cookieValue = cookieHeader
       .split(";")
@@ -130,8 +132,6 @@ export async function GET(request: Request) {
 
     const snapshot = await fetchScheduleSnapshot({
       admin: isAdmin,
-      viewerName: isAdmin ? undefined : viewerName,
-      viewerKey: isAdmin ? undefined : viewerKey,
     });
 
     return NextResponse.json(snapshot);

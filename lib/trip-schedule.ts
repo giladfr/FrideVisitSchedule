@@ -29,8 +29,8 @@ export type TripEvent = {
   id: string;
   title: string;
   emoji?: string;
-  date: string;
-  segment: SegmentId;
+  date: string | null;
+  segment: SegmentId | null;
   attendees: PersonId[];
   location: string;
   placeUrl?: string;
@@ -108,6 +108,9 @@ export const segmentTimes: Record<SegmentId, string> = {
   evening: "15:00-20:00",
   night: "20:00-23:30",
 };
+
+export const undatedLabel = "ללא תאריך";
+export const undatedHint = "מחכה לשיבוץ בלוח";
 
 export const eventEmojiOptions = [
   "🎉",

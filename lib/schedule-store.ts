@@ -35,8 +35,8 @@ export type ScheduleSnapshot = {
 export type EventMutationInput = {
   title: string;
   emoji?: string;
-  date: string;
-  segment: SegmentId;
+  date: string | null;
+  segment: SegmentId | null;
   attendees: PersonId[];
   location: string;
   placeUrl?: string;
@@ -57,7 +57,11 @@ type EventRequestMeta = {
   placeUrl?: string;
   photos?: EventPhoto[];
   comments?: EventComment[];
+  undated?: boolean;
 };
+
+const UNDATED_EVENT_DATE = "9999-12-31";
+const UNDATED_EVENT_SEGMENT: SegmentId = "morning";
 
 const META_PREFIX = "<!--fride-meta:";
 const META_SUFFIX = "-->";
@@ -117,8 +121,8 @@ function mapRow(row: EventRow): TripEvent {
     id: row.id,
     title: row.title,
     emoji: row.emoji ?? undefined,
-    date: row.event_date,
-    segment: row.segment,
+    date: meta.undated ? null : row.event_date,
+    segment: meta.undated ? null : row.segment,
     attendees: row.attendees,
     location: row.location,
     placeUrl: meta.placeUrl,
@@ -162,11 +166,12 @@ async function mapInput(
   return {
     title: input.title,
     emoji: input.emoji?.trim() ? input.emoji.trim() : null,
-    event_date: input.date,
-    segment: input.segment,
+    event_date: input.date ?? UNDATED_EVENT_DATE,
+    segment: input.segment ?? UNDATED_EVENT_SEGMENT,
     attendees: input.attendees,
     location: input.location,
     notes: packNotesPayload(input.notes, {
+      undated: !input.date || !input.segment,
       requestType: input.requestType,
       targetEventId: input.targetEventId,
       viewerKey: input.viewerKey,
@@ -192,7 +197,15 @@ function isSetupError(error: { message?: string } | null) {
 
 function sortEvents(events: TripEvent[]) {
   return [...events].sort((left, right) => {
-    if (left.date !== right.date) {
+    if (left.date === null && right.date !== null) {
+      return 1;
+    }
+
+    if (left.date !== null && right.date === null) {
+      return -1;
+    }
+
+    if (left.date && right.date && left.date !== right.date) {
       return left.date.localeCompare(right.date);
     }
 
@@ -204,8 +217,6 @@ function sortEvents(events: TripEvent[]) {
 
 export async function fetchScheduleSnapshot(options?: {
   admin?: boolean;
-  viewerName?: string;
-  viewerKey?: string;
 }): Promise<ScheduleSnapshot> {
   const supabase = createSupabaseServerClient({
     admin: options?.admin,
@@ -231,7 +242,7 @@ export async function fetchScheduleSnapshot(options?: {
 
   const approvedEvents = sortEvents((data as EventRow[]).map(mapRow));
 
-  if (!options?.admin && options?.viewerName?.trim()) {
+  if (!options?.admin) {
     const adminSupabase = createSupabaseServerClient({ admin: true });
     const { data: pendingData, error: pendingError } = await adminSupabase
       .from("visit_events")
@@ -239,14 +250,7 @@ export async function fetchScheduleSnapshot(options?: {
       .eq("status", "pending");
 
     if (!pendingError && pendingData) {
-      const normalizedViewerName = options.viewerName.trim().toLocaleLowerCase();
-      const pendingEvents = (pendingData as EventRow[])
-        .map(mapRow)
-        .filter(
-          (event) =>
-            event.viewerKey === options.viewerKey ||
-            event.suggestedByName?.trim().toLocaleLowerCase() === normalizedViewerName,
-        );
+      const pendingEvents = (pendingData as EventRow[]).map(mapRow);
 
       const merged = sortEvents([
         ...approvedEvents,

@@ -12,6 +12,8 @@ import {
   segmentLabels,
   segmentTimes,
   tripWindow,
+  undatedHint,
+  undatedLabel,
   type CalendarDay,
   type EventComment,
   type EventPhoto,
@@ -41,16 +43,16 @@ type ModalState =
       type: "form";
       mode: "admin" | "suggest" | "change" | "remove";
       event?: TripEvent;
-      date: string;
-      segment: SegmentId;
+      date: string | null;
+      segment: SegmentId | null;
       targetEvent?: TripEvent;
     }
   | null;
 type EventDraft = {
   title: string;
   emoji: string;
-  date: string;
-  segment: SegmentId;
+  date: string | null;
+  segment: SegmentId | null;
   location: string;
   placeUrl: string;
   notes: string;
@@ -90,8 +92,8 @@ function defaultIdentity(): ViewerIdentity {
 function createDraft(
   mode: "admin" | "suggest" | "change" | "remove",
   options: {
-    date: string;
-    segment: SegmentId;
+    date: string | null;
+    segment: SegmentId | null;
     identity: ViewerIdentity;
     event?: TripEvent;
     targetEvent?: TripEvent;
@@ -150,6 +152,18 @@ function formatDateLabel(date: string) {
   }).format(new Date(`${date}T12:00:00`));
 }
 
+function formatEventDateLabel(date: string | null) {
+  return date ? formatDateLabel(date) : undatedLabel;
+}
+
+function getEventSegmentLabel(segment: SegmentId | null) {
+  return segment ? segmentLabels[segment] : undatedHint;
+}
+
+function isUndatedEvent(event: TripEvent) {
+  return !event.date || !event.segment;
+}
+
 function getAttendeeSummary(event: TripEvent) {
   return event.attendees.map((personId) => getPerson(personId).name).join(" · ");
 }
@@ -163,11 +177,21 @@ function isFullFamily(attendees: PersonId[]) {
 
 function sortEvents(events: TripEvent[]) {
   return [...events].sort((left, right) => {
-    if (left.date !== right.date) {
+    if (left.date === null && right.date !== null) {
+      return 1;
+    }
+
+    if (left.date !== null && right.date === null) {
+      return -1;
+    }
+
+    if (left.date && right.date && left.date !== right.date) {
       return left.date.localeCompare(right.date);
     }
 
-    const segmentOrder = segments.indexOf(left.segment) - segments.indexOf(right.segment);
+    const leftSegmentOrder = left.segment ? segments.indexOf(left.segment) : Number.MAX_SAFE_INTEGER;
+    const rightSegmentOrder = right.segment ? segments.indexOf(right.segment) : Number.MAX_SAFE_INTEGER;
+    const segmentOrder = leftSegmentOrder - rightSegmentOrder;
     if (segmentOrder !== 0) {
       return segmentOrder;
     }
@@ -189,6 +213,10 @@ function buildConflictMap(events: TripEvent[]) {
 
     for (let nextIndex = index + 1; nextIndex < activeEvents.length; nextIndex += 1) {
       const right = activeEvents[nextIndex];
+
+      if (!left.date || !left.segment || !right.date || !right.segment) {
+        continue;
+      }
 
       if (left.date !== right.date || left.segment !== right.segment) {
         continue;
@@ -214,7 +242,7 @@ function canSeeEvent(
   }
 
   if (event.status === "pending" && !editable) {
-    return filter !== "all" && filter === event.suggestedByPerson;
+    return true;
   }
 
   if (filter === "all") {
@@ -300,18 +328,12 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
     window.localStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(viewerIdentity));
   }, [editable, identityReady, viewerIdentity]);
 
-  const refreshSchedule = useCallback(async (identityName?: string) => {
+  const refreshSchedule = useCallback(async () => {
     setLoading(true);
     setErrorMessage(null);
 
     try {
-      const params =
-        !editable && identityName?.trim()
-          ? `?viewerName=${encodeURIComponent(identityName.trim())}&viewerKey=${encodeURIComponent(
-              viewerIdentity.key,
-            )}`
-          : "";
-      const response = await fetch(`/api/events${params}`, { cache: "no-store" });
+      const response = await fetch("/api/events", { cache: "no-store" });
       const payload = await readJson<SnapshotResponse>(response);
       setEvents(sortEvents(payload.events));
       setDatabaseReady(payload.databaseReady);
@@ -321,11 +343,11 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
     } finally {
       setLoading(false);
     }
-  }, [editable, viewerIdentity.key]);
+  }, []);
 
   useEffect(() => {
-    void refreshSchedule(editable ? undefined : viewerIdentity.name);
-  }, [editable, refreshSchedule, viewerIdentity.key, viewerIdentity.name]);
+    void refreshSchedule();
+  }, [refreshSchedule]);
 
   const selectedEvent = useMemo(() => {
     if (modalState?.type !== "details") {
@@ -338,6 +360,14 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
   const filteredEvents = useMemo(
     () => sortEvents(events.filter((event) => canSeeEvent(event, selectedFilter, editable))),
     [editable, events, selectedFilter],
+  );
+  const undatedEvents = useMemo(
+    () => sortEvents(filteredEvents.filter((event) => isUndatedEvent(event))),
+    [filteredEvents],
+  );
+  const scheduledEvents = useMemo(
+    () => filteredEvents.filter((event) => !isUndatedEvent(event)),
+    [filteredEvents],
   );
 
   const conflictIds = useMemo(() => buildConflictMap(events), [events]);
@@ -371,18 +401,20 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
     return tripDays
       .map((day) => ({
         day,
-        events: filteredEvents.filter((event) => event.date === day.date),
+        events: scheduledEvents.filter((event) => event.date === day.date),
       }))
       .filter((entry) => entry.events.length > 0);
-  }, [filteredEvents]);
+  }, [scheduledEvents]);
 
   const selectedWeek = useMemo(
     () => weeks.find((week) => week.days.some((day) => day.date === selectedDay)) ?? weeks[0],
     [selectedDay],
   );
 
-  function openNewEvent(date: string, segment: SegmentId) {
-    setSelectedDay(date);
+  function openNewEvent(date: string | null, segment: SegmentId | null) {
+    if (date) {
+      setSelectedDay(date);
+    }
     setModalState({
       type: "form",
       mode: editable ? "admin" : "suggest",
@@ -402,7 +434,9 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
   }
 
   function openChangeRequest(event: TripEvent) {
-    setSelectedDay(event.date);
+    if (event.date) {
+      setSelectedDay(event.date);
+    }
     setModalState({
       type: "form",
       mode: "change",
@@ -413,7 +447,9 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
   }
 
   function openRemoveRequest(event: TripEvent) {
-    setSelectedDay(event.date);
+    if (event.date) {
+      setSelectedDay(event.date);
+    }
     setModalState({
       type: "form",
       mode: "remove",
@@ -441,7 +477,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       });
 
       await readJson<{ event?: TripEvent }>(response);
-      await refreshSchedule(editable ? undefined : viewerIdentity.name);
+      await refreshSchedule();
       setNotice(successMessage);
       setModalState(null);
     } catch (error) {
@@ -496,7 +532,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
         window.localStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify(nextIdentity));
       }
 
-      await refreshSchedule(editable ? undefined : draft.suggestedByName);
+      await refreshSchedule();
       setNotice(
         editable
           ? "האירוע נשמר."
@@ -522,7 +558,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
         method: "DELETE",
       });
       await readJson<{ ok: true }>(response);
-      await refreshSchedule(undefined);
+      await refreshSchedule();
       setNotice("האירוע נמחק.");
       setModalState(null);
     } catch (error) {
@@ -622,7 +658,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       });
 
       await readJson<{ ok: true }>(response);
-      await refreshSchedule(undefined);
+      await refreshSchedule();
       setNotice("אירועי הדמו הועלו ל-Supabase.");
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "טעינת הדמו נכשלה.");
@@ -734,7 +770,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
             <div className="flex flex-wrap gap-3">
               <StatsCard label="שבועות בביקור" value={`${weeks.length}`} />
               <StatsCard label="ימי ביקור" value={`${tripDays.length}`} />
-              <StatsCard label="אירועים בלוח" value={`${filteredEvents.length}`} />
+              <StatsCard label="אירועים בלוח" value={`${scheduledEvents.length}`} />
             </div>
           </div>
 
@@ -826,7 +862,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
               <div className="flex flex-wrap gap-2">
                 <button
                   type="button"
-                  onClick={() => openNewEvent(selectedDay, "morning")}
+                  onClick={() => openNewEvent(null, null)}
                   className="rounded-full bg-stone-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-stone-800"
                 >
                   הוספת הצעה חדשה
@@ -898,7 +934,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
               </button>
               <button
                 type="button"
-                onClick={() => openNewEvent(selectedDay, "morning")}
+                onClick={() => openNewEvent(null, null)}
                 className="rounded-full border border-sky-300 bg-white px-4 py-2 text-sm font-semibold text-sky-950 transition hover:bg-sky-100"
               >
                 אירוע חדש
@@ -913,6 +949,47 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                 </button>
               ) : null}
             </div>
+          </div>
+        </section>
+      ) : null}
+
+      {undatedEvents.length > 0 ? (
+        <section className="rounded-[1.75rem] border border-[var(--panel-border)] bg-[var(--panel)] p-4 shadow-[0_16px_50px_rgba(28,25,23,0.06)]">
+          <div className="mb-4 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-stone-500">
+                רעיונות לפני שיבוץ
+              </p>
+              <h2 className="mt-1 text-2xl font-semibold text-stone-950">אירועים שעדיין בלי תאריך</h2>
+              <p className="mt-1 text-sm text-stone-600">
+                כולם רואים את ההצעות האלה. במצב עריכה אפשר לגרור כל אחת מהן ישר אל יום וחלק ביום בלוח.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => openNewEvent(null, null)}
+              className="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 transition hover:bg-stone-100"
+            >
+              {editable ? "רעיון חדש" : "הצעת רעיון חדש"}
+            </button>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {undatedEvents.map((event) => (
+              <EventCard
+                key={`undated-${event.id}`}
+                event={event}
+                hasConflict={false}
+                compact={false}
+                draggable={editable && isEditing && event.status !== "rejected"}
+                onDragStart={() => setDraggedEventId(event.id)}
+                onDragEnd={() => {
+                  setDraggedEventId(null);
+                  setDropTarget(null);
+                }}
+                onClick={() => setModalState({ type: "details", eventId: event.id })}
+              />
+            ))}
           </div>
         </section>
       ) : null}
@@ -939,7 +1016,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                 <WeekSection
                   key={week.id}
                   week={week}
-                  events={filteredEvents}
+                  events={scheduledEvents}
                   conflictIds={conflictIds}
                   editable={editable}
                   isEditing={isEditing}
@@ -983,7 +1060,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                     key={segment}
                     day={selectedDayData}
                     segment={segment}
-                    events={filteredEvents.filter(
+                    events={scheduledEvents.filter(
                       (event) => event.date === selectedDayData.date && event.segment === segment,
                     )}
                     conflictIds={conflictIds}
@@ -1012,7 +1089,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                 weeks={weeks}
                 week={selectedWeek}
                 selectedWeekIndex={weeks.findIndex((week) => week.id === selectedWeek.id)}
-                events={filteredEvents}
+                events={scheduledEvents}
                 conflictIds={conflictIds}
                 editable={editable}
                 isEditing={isEditing}
@@ -1110,7 +1187,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                         <span>{event.title}</span>
                       </p>
                       <p className="mt-1 text-sm text-stone-600">
-                        {formatDateLabel(event.date)} · {segmentLabels[event.segment]}
+                        {formatEventDateLabel(event.date)} · {getEventSegmentLabel(event.segment)}
                       </p>
                       <p className="mt-1 text-sm text-stone-600">
                         {getRequestTypeLabel(event.requestType)} מאת {event.suggestedByName} עבור{" "}
@@ -1180,7 +1257,7 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
                         {event.title}
                       </p>
                       <p className="mt-1 text-sm text-rose-800">
-                        {formatDateLabel(event.date)} · {segmentLabels[event.segment]}
+                        {formatEventDateLabel(event.date)} · {getEventSegmentLabel(event.segment)}
                       </p>
                       <p className="mt-1 text-sm text-rose-700">{getAttendeeSummary(event)}</p>
                     </button>
@@ -2008,7 +2085,7 @@ function EventCard({
             {event.title}
           </p>
           <p className="mt-0.5 text-[11px] text-stone-600">
-            {event.location} · {segmentLabels[event.segment]}
+            {[event.location, event.date ? getEventSegmentLabel(event.segment) : undatedLabel].join(" · ")}
           </p>
           {event.suggestedByName ? (
             <p className="mt-0.5 text-[11px] text-stone-500">
@@ -2048,7 +2125,11 @@ function EventCard({
                 ) : null}
               </div>
               <p className="mt-1 text-sm text-stone-600">{event.location}</p>
-              <p className="mt-1 text-xs font-medium text-stone-500">{segmentLabels[event.segment]}</p>
+              <p className="mt-1 text-xs font-medium text-stone-500">
+                {event.date
+                  ? `${formatEventDateLabel(event.date)} · ${getEventSegmentLabel(event.segment)}`
+                  : undatedHint}
+              </p>
               {event.suggestedByName ? (
                 <p className="mt-1 text-xs text-stone-500">
                   {event.requestType && event.requestType !== "new"
@@ -2320,8 +2401,8 @@ function EventDetailsModal({
 
         <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto px-4 py-5 sm:px-6">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Detail label="תאריך" value={formatDateLabel(event.date)} />
-            <Detail label="חלק ביום" value={segmentLabels[event.segment]} />
+            <Detail label="תאריך" value={formatEventDateLabel(event.date)} />
+            <Detail label="חלק ביום" value={getEventSegmentLabel(event.segment)} />
             <Detail label="מיקום" value={event.location} />
             <Detail label="סטטוס" value={event.status === "approved" ? "מאושר" : event.status === "pending" ? "ממתין לאישור" : "נדחה"} />
             <Detail label="משתתפים" value={event.attendees.map((personId) => getPerson(personId).name).join(", ")} />
@@ -2513,6 +2594,7 @@ function EventFormModal({
 }) {
   const [formState, setFormState] = useState<EventDraft>(draft);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const isUndated = !formState.date || !formState.segment;
 
   function toggleAttendee(personId: PersonId) {
     setFormState((current) => {
@@ -2586,11 +2668,35 @@ function EventFormModal({
               <p className="font-semibold text-stone-900">האירוע המקורי</p>
               <p className="mt-1">
                 {targetEvent.emoji ? `${targetEvent.emoji} ` : ""}
-                {targetEvent.title} · {formatDateLabel(targetEvent.date)} · {segmentLabels[targetEvent.segment]}
+                {targetEvent.title} · {formatEventDateLabel(targetEvent.date)} · {getEventSegmentLabel(targetEvent.segment)}
               </p>
               <p className="mt-1 text-stone-600">{targetEvent.location}</p>
             </div>
           ) : null}
+
+          <div className="mb-4 rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3">
+            <label className="flex items-center justify-between gap-4">
+              <div>
+                <p className="font-semibold text-stone-900">עדיין בלי תאריך?</p>
+                <p className="mt-1 text-sm text-stone-600">
+                  אפשר לשמור את האירוע כרעיון פתוח, והוא יופיע באזור מיוחד עד שישובץ בלוח.
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={isUndated}
+                disabled={mode === "remove"}
+                onChange={(event) =>
+                  setFormState((current) => ({
+                    ...current,
+                    date: event.target.checked ? null : current.date ?? tripWindow.start,
+                    segment: event.target.checked ? null : current.segment ?? "morning",
+                  }))
+                }
+                className="h-5 w-5 rounded border-stone-300 text-stone-950 focus:ring-stone-900"
+              />
+            </label>
+          </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <Field label="כותרת">
@@ -2639,22 +2745,31 @@ function EventFormModal({
             <Field label="תאריך">
               <input
                 type="date"
-                value={formState.date}
-                onChange={(event) => setFormState((current) => ({ ...current, date: event.target.value }))}
-                disabled={mode === "remove"}
+                value={formState.date ?? ""}
+                onChange={(event) =>
+                  setFormState((current) => ({
+                    ...current,
+                    date: event.target.value || null,
+                  }))
+                }
+                disabled={mode === "remove" || isUndated}
                 className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
               />
             </Field>
 
             <Field label="חלק ביום">
               <select
-                value={formState.segment}
+                value={formState.segment ?? ""}
                 onChange={(event) =>
-                  setFormState((current) => ({ ...current, segment: event.target.value as SegmentId }))
+                  setFormState((current) => ({
+                    ...current,
+                    segment: (event.target.value as SegmentId) || null,
+                  }))
                 }
-                disabled={mode === "remove"}
+                disabled={mode === "remove" || isUndated}
                 className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
               >
+                <option value="">בחרו חלק ביום</option>
                 {segments.map((segment) => (
                   <option key={segment} value={segment}>
                     {segmentLabels[segment]}

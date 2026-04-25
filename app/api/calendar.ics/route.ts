@@ -38,6 +38,10 @@ function formatLocalDateTime(date: string, time: string) {
 }
 
 function toIcsEvent(baseUrl: string, event: Awaited<ReturnType<typeof fetchScheduleSnapshot>>["events"][number]) {
+  if (!event.date || !event.segment) {
+    return null;
+  }
+
   const times = segmentTimeRanges[event.segment];
   const mapsUrl = buildGoogleMapsSearchUrl(event.location);
   const descriptionParts = [
@@ -77,7 +81,9 @@ export async function GET(request: Request) {
       `X-WR-CALNAME:${escapeIcsText(CALENDAR_NAME)}`,
       `X-WR-CALDESC:${escapeIcsText(CALENDAR_DESCRIPTION)}`,
       `X-WR-TIMEZONE:${CALENDAR_TIMEZONE}`,
-      ...approvedEvents.map((event) => toIcsEvent(baseUrl, event)),
+      ...approvedEvents
+        .map((event) => toIcsEvent(baseUrl, event))
+        .filter((event): event is string => Boolean(event)),
       "END:VCALENDAR",
       "",
     ];

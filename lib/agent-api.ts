@@ -66,22 +66,26 @@ export function parseAgentEventInput(payload: unknown) {
       )
     : [];
 
-  if (
-    typeof raw.title !== "string" ||
-    typeof raw.date !== "string" ||
-    typeof raw.segment !== "string" ||
-    typeof raw.location !== "string" ||
-    !isSegment(raw.segment) ||
-    attendees.length === 0
-  ) {
+  if (typeof raw.title !== "string" || typeof raw.location !== "string" || attendees.length === 0) {
     throw new Error("Missing required event fields.");
+  }
+
+  const date =
+    typeof raw.date === "string" && raw.date.trim() ? raw.date.trim() : null;
+  const segment =
+    typeof raw.segment === "string" && raw.segment.trim()
+      ? raw.segment.trim()
+      : null;
+
+  if ((date && !segment) || (!date && segment) || (segment && !isSegment(segment))) {
+    throw new Error("Date and time segment must either both be set or both be empty.");
   }
 
   const input: EventMutationInput = {
     title: raw.title.trim(),
     emoji: typeof raw.emoji === "string" ? raw.emoji.trim() : undefined,
-    date: raw.date,
-    segment: raw.segment,
+    date,
+    segment: segment as SegmentId | null,
     attendees,
     location: raw.location.trim(),
     notes: typeof raw.notes === "string" ? raw.notes.trim() : undefined,
@@ -119,11 +123,11 @@ export function filterAgentEvents(snapshot: ScheduleSnapshot, request: Request) 
   }
 
   if (from) {
-    events = events.filter((event) => event.date >= from);
+    events = events.filter((event) => event.date !== null && event.date >= from);
   }
 
   if (to) {
-    events = events.filter((event) => event.date <= to);
+    events = events.filter((event) => event.date !== null && event.date <= to);
   }
 
   if (status === "approved" || status === "pending" || status === "rejected") {
