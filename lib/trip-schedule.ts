@@ -34,6 +34,7 @@ export type TripEvent = {
   attendees: PersonId[];
   location: string;
   placeUrl?: string;
+  eventUrl?: string;
   notes?: string;
   photos?: EventPhoto[];
   comments?: EventComment[];

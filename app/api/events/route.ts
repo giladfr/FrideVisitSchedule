@@ -59,6 +59,10 @@ function parseEventInput(payload: unknown) {
       typeof raw.placeUrl === "string" && raw.placeUrl.trim()
         ? raw.placeUrl.trim()
         : undefined,
+    eventUrl:
+      typeof raw.eventUrl === "string" && raw.eventUrl.trim()
+        ? raw.eventUrl.trim()
+        : undefined,
     notes: typeof raw.notes === "string" ? raw.notes.trim() : undefined,
     photos: Array.isArray(raw.photos)
       ? raw.photos

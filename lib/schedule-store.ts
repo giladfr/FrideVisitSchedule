@@ -40,6 +40,7 @@ export type EventMutationInput = {
   attendees: PersonId[];
   location: string;
   placeUrl?: string;
+  eventUrl?: string;
   notes?: string;
   photos?: EventPhoto[];
   comments?: EventComment[];
@@ -55,6 +56,7 @@ type EventRequestMeta = {
   targetEventId?: string;
   viewerKey?: string;
   placeUrl?: string;
+  eventUrl?: string;
   photos?: EventPhoto[];
   comments?: EventComment[];
   undated?: boolean;
@@ -126,6 +128,7 @@ function mapRow(row: EventRow): TripEvent {
     attendees: row.attendees,
     location: row.location,
     placeUrl: meta.placeUrl,
+    eventUrl: meta.eventUrl,
     status: row.status,
     createdByRole: row.created_by_role,
     suggestedByName: row.suggested_by_name ?? undefined,
@@ -150,6 +153,7 @@ async function mapInput(
 ) {
   const normalizedPhotos = [...(input.photos ?? [])];
   const normalizedPlaceUrl = input.placeUrl?.trim() || undefined;
+  const normalizedEventUrl = input.eventUrl?.trim() || undefined;
 
   if (normalizedPlaceUrl && normalizedPhotos.length === 0) {
     const previewUrl = await fetchPlaceImagePreview(normalizedPlaceUrl);
@@ -176,6 +180,7 @@ async function mapInput(
       targetEventId: input.targetEventId,
       viewerKey: input.viewerKey,
       placeUrl: normalizedPlaceUrl,
+      eventUrl: normalizedEventUrl,
       photos: normalizedPhotos,
       comments: input.comments ?? [],
     }),
@@ -442,6 +447,7 @@ export async function addEventComment(eventId: string, comment: EventComment) {
         targetEventId: event.targetEventId,
         viewerKey: event.viewerKey,
         placeUrl: event.placeUrl,
+        eventUrl: event.eventUrl,
         photos: event.photos ?? [],
         comments: nextComments,
       }),
@@ -471,6 +477,7 @@ export async function addEventPhoto(eventId: string, photo: EventPhoto) {
         targetEventId: event.targetEventId,
         viewerKey: event.viewerKey,
         placeUrl: event.placeUrl,
+        eventUrl: event.eventUrl,
         photos: nextPhotos,
         comments: event.comments ?? [],
       }),

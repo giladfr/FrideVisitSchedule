@@ -88,6 +88,14 @@ export function parseAgentEventInput(payload: unknown) {
     segment: segment as SegmentId | null,
     attendees,
     location: raw.location.trim(),
+    placeUrl:
+      typeof raw.placeUrl === "string" && raw.placeUrl.trim()
+        ? raw.placeUrl.trim()
+        : undefined,
+    eventUrl:
+      typeof raw.eventUrl === "string" && raw.eventUrl.trim()
+        ? raw.eventUrl.trim()
+        : undefined,
     notes: typeof raw.notes === "string" ? raw.notes.trim() : undefined,
   };
 

@@ -55,6 +55,7 @@ type EventDraft = {
   segment: SegmentId | null;
   location: string;
   placeUrl: string;
+  eventUrl: string;
   notes: string;
   photos: EventPhoto[];
   comments: EventComment[];
@@ -110,6 +111,7 @@ function createDraft(
     segment: event?.segment ?? options.segment,
     location: event?.location ?? "",
     placeUrl: event?.placeUrl ?? "",
+    eventUrl: event?.eventUrl ?? "",
     notes: event?.notes ?? "",
     photos: event?.photos ?? [],
     comments: event?.comments ?? [],
@@ -162,6 +164,42 @@ function getEventSegmentLabel(segment: SegmentId | null) {
 
 function isUndatedEvent(event: TripEvent) {
   return !event.date || !event.segment;
+}
+
+function renderTextWithLinks(text: string) {
+  const urlPattern = /(https?:\/\/[^\s]+)/g;
+  const parts = text.split(urlPattern);
+
+  return parts.map((part, index) => {
+    if (/^https?:\/\//.test(part)) {
+        return (
+          <a
+            key={`${part}-${index}`}
+            href={part}
+            target="_blank"
+            rel="noreferrer"
+            className="break-all font-medium text-sky-800 underline decoration-sky-300 underline-offset-4 hover:text-sky-950"
+          >
+            {part}
+          </a>
+        );
+    }
+
+    return <span key={`${index}-${part.slice(0, 8)}`}>{part}</span>;
+  });
+}
+
+function normalizeUrl(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+
+  return `https://${trimmed}`;
 }
 
 function getAttendeeSummary(event: TripEvent) {
@@ -497,7 +535,8 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
       date: draft.date,
       segment: draft.segment,
       location: draft.location,
-      placeUrl: draft.placeUrl,
+      placeUrl: normalizeUrl(draft.placeUrl),
+      eventUrl: normalizeUrl(draft.eventUrl),
       notes: draft.notes,
       photos: draft.photos,
       comments: draft.comments,
@@ -621,7 +660,8 @@ export function ScheduleBoard({ editable = false }: ScheduleBoardProps) {
           date,
           segment,
           location: event.location,
-          placeUrl: event.placeUrl ?? "",
+          placeUrl: normalizeUrl(event.placeUrl ?? ""),
+          eventUrl: normalizeUrl(event.eventUrl ?? ""),
           notes: event.notes ?? "",
           photos: event.photos ?? [],
           comments: event.comments ?? [],
@@ -2350,7 +2390,7 @@ function EventDetailsModal({
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-stone-950/45 px-3 py-4 sm:px-4 sm:py-8">
       <button type="button" aria-label="close" onClick={onClose} className="absolute inset-0 cursor-default" />
       <div
-        className="relative z-10 my-auto w-full max-w-lg rounded-[1.75rem] border border-[var(--panel-border)] bg-white shadow-[0_30px_90px_rgba(28,25,23,0.18)] sm:rounded-[2rem]"
+        className="relative z-10 my-auto w-full max-w-6xl rounded-[1.75rem] border border-[var(--panel-border)] bg-white shadow-[0_30px_90px_rgba(28,25,23,0.18)] sm:rounded-[2rem]"
         dir="rtl"
       >
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 rounded-t-[1.75rem] border-b border-stone-200 bg-white px-4 py-4 sm:rounded-t-[2rem] sm:px-6">
@@ -2400,85 +2440,104 @@ function EventDetailsModal({
         </div>
 
         <div className="max-h-[calc(100dvh-8rem)] overflow-y-auto px-4 py-5 sm:px-6">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Detail label="תאריך" value={formatEventDateLabel(event.date)} />
-            <Detail label="חלק ביום" value={getEventSegmentLabel(event.segment)} />
-            <Detail label="מיקום" value={event.location} />
-            <Detail label="סטטוס" value={event.status === "approved" ? "מאושר" : event.status === "pending" ? "ממתין לאישור" : "נדחה"} />
-            <Detail label="משתתפים" value={event.attendees.map((personId) => getPerson(personId).name).join(", ")} />
-            <Detail label="הוצע על ידי" value={event.suggestedByName ?? "אדמין"} />
-            {event.requestType && event.requestType !== "new" ? (
-              <Detail label="סוג בקשה" value={getRequestTypeLabel(event.requestType)} />
-            ) : null}
-          </div>
-
-          {mapsUrl || wazeUrl || event.placeUrl ? (
-            <div className="mt-4 flex flex-wrap gap-2">
-              {mapsUrl ? (
-                <a
-                  href={mapsUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-900 transition hover:bg-sky-100"
-                >
-                  Google Maps
-                </a>
-              ) : null}
-              {wazeUrl ? (
-                <a
-                  href={wazeUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100"
-                >
-                  Waze
-                </a>
-              ) : null}
-              {event.placeUrl ? (
-                <a
-                  href={event.placeUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 transition hover:bg-stone-100"
-                >
-                  קישור למקום
-                </a>
-              ) : null}
-            </div>
-          ) : null}
-
-          {event.photos && event.photos.length > 0 ? (
-            <div className="mt-5">
-              <p className="text-sm font-semibold text-stone-700">תמונות וקישורים חזותיים</p>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                {event.photos.map((photo) => (
-                  <a
-                    key={photo.id}
-                    href={photo.url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="overflow-hidden rounded-[1.25rem] border border-stone-200 bg-stone-50"
-                  >
-                    <img
-                      src={photo.url}
-                      alt={photo.caption ?? event.title}
-                      className="h-40 w-full object-cover"
-                    />
-                    <div className="px-3 py-2 text-sm text-stone-700">
-                      {photo.caption ? <p className="font-medium text-stone-900">{photo.caption}</p> : null}
-                      {photo.addedByName ? <p className="mt-1 text-xs text-stone-500">נוסף על ידי {photo.addedByName}</p> : null}
-                    </div>
-                  </a>
-                ))}
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(340px,0.9fr)]">
+            <section className="space-y-5">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                <Detail label="תאריך" value={formatEventDateLabel(event.date)} />
+                <Detail label="חלק ביום" value={getEventSegmentLabel(event.segment)} />
+                <Detail label="מיקום" value={event.location} />
+                <Detail label="סטטוס" value={event.status === "approved" ? "מאושר" : event.status === "pending" ? "ממתין לאישור" : "נדחה"} />
+                <Detail label="משתתפים" value={event.attendees.map((personId) => getPerson(personId).name).join(", ")} />
+                <Detail label="הוצע על ידי" value={event.suggestedByName ?? "אדמין"} />
+                {event.requestType && event.requestType !== "new" ? (
+                  <Detail label="סוג בקשה" value={getRequestTypeLabel(event.requestType)} />
+                ) : null}
               </div>
-            </div>
-          ) : null}
 
-          {event.notes ? (
-            <div className="mt-5 rounded-2xl bg-stone-100 px-4 py-3 text-sm leading-7 text-stone-700">{event.notes}</div>
-          ) : null}
+              {mapsUrl || wazeUrl || event.placeUrl || event.eventUrl ? (
+                <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50 p-4">
+                  <p className="text-sm font-semibold text-stone-900">קישורים שימושיים</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {mapsUrl ? (
+                      <a
+                        href={mapsUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center rounded-full border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-900 transition hover:bg-sky-100"
+                      >
+                        Google Maps
+                      </a>
+                    ) : null}
+                    {wazeUrl ? (
+                      <a
+                        href={wazeUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-900 transition hover:bg-emerald-100"
+                      >
+                        Waze
+                      </a>
+                    ) : null}
+                    {event.placeUrl ? (
+                      <a
+                        href={event.placeUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 transition hover:bg-stone-100"
+                      >
+                        קישור למקום
+                      </a>
+                    ) : null}
+                    {event.eventUrl ? (
+                      <a
+                        href={event.eventUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-900 transition hover:bg-amber-100"
+                      >
+                        קישור לאירוע
+                      </a>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
-          <div className="mt-5 rounded-[1.5rem] border border-stone-200 bg-stone-50 p-4">
+              {event.notes ? (
+                <div className="rounded-[1.5rem] bg-stone-100 px-4 py-4 text-sm leading-7 text-stone-700 break-words">
+                  {renderTextWithLinks(event.notes)}
+                </div>
+              ) : null}
+
+              {event.photos && event.photos.length > 0 ? (
+                <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50 p-4">
+                  <p className="text-sm font-semibold text-stone-700">תמונות וקישורים חזותיים</p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    {event.photos.map((photo) => (
+                      <a
+                        key={photo.id}
+                        href={photo.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="overflow-hidden rounded-[1.25rem] border border-stone-200 bg-white"
+                      >
+                        <img
+                          src={photo.url}
+                          alt={photo.caption ?? event.title}
+                          className="h-40 w-full object-cover"
+                        />
+                        <div className="px-3 py-2 text-sm text-stone-700">
+                          {photo.caption ? <p className="font-medium text-stone-900">{photo.caption}</p> : null}
+                          {photo.addedByName ? <p className="mt-1 text-xs text-stone-500">נוסף על ידי {photo.addedByName}</p> : null}
+                        </div>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </section>
+
+            <section className="space-y-5">
+              <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50 p-4">
             <p className="text-sm font-semibold text-stone-900">תגובות</p>
             <div className="mt-3 space-y-3">
               {event.comments && event.comments.length > 0 ? (
@@ -2530,42 +2589,44 @@ function EventDetailsModal({
                 הוספת תגובה
               </button>
             </div>
-          </div>
-
-          <div className="mt-5 rounded-[1.5rem] border border-stone-200 bg-stone-50 p-4">
-            <p className="text-sm font-semibold text-stone-900">שיתוף תמונה</p>
-            <div className="mt-3 grid gap-3">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <input
-                  value={photoAuthor}
-                  onChange={(currentEvent) => setPhotoAuthor(currentEvent.target.value)}
-                  className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
-                  placeholder="השם שלך"
-                />
-                <input
-                  value={photoCaption}
-                  onChange={(currentEvent) => setPhotoCaption(currentEvent.target.value)}
-                  className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
-                  placeholder="כיתוב קצר"
-                />
               </div>
-              <input
-                value={photoUrl}
-                onChange={(currentEvent) => setPhotoUrl(currentEvent.target.value)}
-                className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
-                placeholder="קישור ישיר לתמונה"
-              />
-            </div>
-            <div className="mt-3 flex justify-end">
-              <button
-                type="button"
-                disabled={actionPending || !photoUrl.trim()}
-                onClick={() => void submitPhoto()}
-                className="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 transition hover:bg-stone-100 disabled:opacity-60"
-              >
-                הוספת תמונה
-              </button>
-            </div>
+
+              <div className="rounded-[1.5rem] border border-stone-200 bg-stone-50 p-4">
+                <p className="text-sm font-semibold text-stone-900">שיתוף תמונה</p>
+                <div className="mt-3 grid gap-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <input
+                      value={photoAuthor}
+                      onChange={(currentEvent) => setPhotoAuthor(currentEvent.target.value)}
+                      className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                      placeholder="השם שלך"
+                    />
+                    <input
+                      value={photoCaption}
+                      onChange={(currentEvent) => setPhotoCaption(currentEvent.target.value)}
+                      className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                      placeholder="כיתוב קצר"
+                    />
+                  </div>
+                  <input
+                    value={photoUrl}
+                    onChange={(currentEvent) => setPhotoUrl(currentEvent.target.value)}
+                    className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                    placeholder="קישור ישיר לתמונה"
+                  />
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <button
+                    type="button"
+                    disabled={actionPending || !photoUrl.trim()}
+                    onClick={() => void submitPhoto()}
+                    className="rounded-full border border-stone-300 bg-white px-4 py-2 text-sm font-semibold text-stone-800 transition hover:bg-stone-100 disabled:opacity-60"
+                  >
+                    הוספת תמונה
+                  </button>
+                </div>
+              </div>
+            </section>
           </div>
         </div>
       </div>
@@ -2625,7 +2686,7 @@ function EventFormModal({
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-stone-950/45 px-3 py-4 sm:px-4 sm:py-8">
       <button type="button" aria-label="close" onClick={onClose} className="absolute inset-0 cursor-default" />
       <div
-        className="relative z-10 my-auto w-full max-w-2xl rounded-[1.75rem] border border-[var(--panel-border)] bg-white shadow-[0_30px_90px_rgba(28,25,23,0.18)] sm:rounded-[2rem]"
+        className="relative z-10 my-auto w-full max-w-5xl rounded-[1.75rem] border border-[var(--panel-border)] bg-white shadow-[0_30px_90px_rgba(28,25,23,0.18)] sm:rounded-[2rem]"
         dir="rtl"
       >
         <div className="sticky top-0 z-10 flex items-start justify-between gap-4 rounded-t-[1.75rem] border-b border-stone-200 bg-white px-4 py-4 sm:rounded-t-[2rem] sm:px-6">
@@ -2698,7 +2759,7 @@ function EventFormModal({
             </label>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-3">
             <Field label="כותרת">
               <input
                 value={formState.title}
@@ -2742,6 +2803,16 @@ function EventFormModal({
               />
             </Field>
 
+            <Field label="קישור לאירוע">
+              <input
+                value={formState.eventUrl}
+                onChange={(event) => setFormState((current) => ({ ...current, eventUrl: event.target.value }))}
+                disabled={mode === "remove"}
+                className="w-full rounded-2xl border border-stone-300 bg-white px-4 py-3 text-stone-950 outline-none transition focus:border-stone-950"
+                placeholder="https://..."
+              />
+            </Field>
+
             <Field label="תאריך">
               <input
                 type="date"
@@ -2780,7 +2851,7 @@ function EventFormModal({
           </div>
 
           {mode === "suggest" ? (
-            <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <div className="mt-4 grid gap-4 xl:grid-cols-2">
               <Field label="מי מציע/ה?">
                 <input
                   value={formState.suggestedByName}
