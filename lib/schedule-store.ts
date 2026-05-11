@@ -223,18 +223,63 @@ function sortEvents(events: TripEvent[]) {
 export async function fetchScheduleSnapshot(options?: {
   admin?: boolean;
 }): Promise<ScheduleSnapshot> {
-  const supabase = createSupabaseServerClient({
-    admin: options?.admin,
-  });
+  try {
+    const supabase = createSupabaseServerClient({
+      admin: options?.admin,
+    });
 
-  const { data, error } = await supabase
-    .from("visit_events")
-    .select("*")
-    .order("event_date", { ascending: true })
-    .order("created_at", { ascending: true });
+    const { data, error } = await supabase
+      .from("visit_events")
+      .select("*")
+      .order("event_date", { ascending: true })
+      .order("created_at", { ascending: true });
 
-  if (error) {
-    if (isSetupError(error)) {
+    if (error) {
+      if (isSetupError(error)) {
+        return {
+          events: sortEvents(demoEvents),
+          usingDemoData: true,
+          databaseReady: false,
+        };
+      }
+
+      throw new Error(error.message);
+    }
+
+    const approvedEvents = sortEvents((data as EventRow[]).map(mapRow));
+
+    if (!options?.admin) {
+      const adminSupabase = createSupabaseServerClient({ admin: true });
+      const { data: pendingData, error: pendingError } = await adminSupabase
+        .from("visit_events")
+        .select("*")
+        .eq("status", "pending");
+
+      if (!pendingError && pendingData) {
+        const pendingEvents = (pendingData as EventRow[]).map(mapRow);
+
+        const merged = sortEvents([
+          ...approvedEvents,
+          ...pendingEvents,
+        ]);
+
+        return {
+          events: merged,
+          usingDemoData: false,
+          databaseReady: true,
+        };
+      }
+    }
+
+    return {
+      events: approvedEvents,
+      usingDemoData: false,
+      databaseReady: true,
+    };
+  } catch (error) {
+    console.error("Failed to load schedule snapshot from Supabase", error);
+
+    if (error instanceof Error && isSetupError({ message: error.message })) {
       return {
         events: sortEvents(demoEvents),
         usingDemoData: true,
@@ -242,39 +287,12 @@ export async function fetchScheduleSnapshot(options?: {
       };
     }
 
-    throw new Error(error.message);
+    return {
+      events: sortEvents(demoEvents),
+      usingDemoData: true,
+      databaseReady: false,
+    };
   }
-
-  const approvedEvents = sortEvents((data as EventRow[]).map(mapRow));
-
-  if (!options?.admin) {
-    const adminSupabase = createSupabaseServerClient({ admin: true });
-    const { data: pendingData, error: pendingError } = await adminSupabase
-      .from("visit_events")
-      .select("*")
-      .eq("status", "pending");
-
-    if (!pendingError && pendingData) {
-      const pendingEvents = (pendingData as EventRow[]).map(mapRow);
-
-      const merged = sortEvents([
-        ...approvedEvents,
-        ...pendingEvents,
-      ]);
-
-      return {
-        events: merged,
-        usingDemoData: false,
-        databaseReady: true,
-      };
-    }
-  }
-
-  return {
-    events: approvedEvents,
-    usingDemoData: false,
-    databaseReady: true,
-  };
 }
 
 export async function createSuggestedEvent(input: EventMutationInput) {
